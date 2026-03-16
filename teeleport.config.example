@@ -1,0 +1,68 @@
+# Teeleport configuration file
+# Copy this file to ~/dotfiles/teeleport.config or ~/.dotfiles/teeleport.config
+# and adjust it to your environment.
+
+# Path to your dotfiles repository (used as the base for relative copy sources).
+dotfile_repo: ~/dotfiles
+
+# ---------------------------------------------------------------------------
+# Mounts — directories to mount from a remote host into the dev container
+# ---------------------------------------------------------------------------
+mounts:
+  # SSH connection details for the remote host.
+  ssh:
+    host: my-server.example.com
+    user: devuser
+    port: 22                        # default: 22
+    identity_file: ~/.ssh/id_ed25519
+
+  # Default ownership for mounted files.
+  permissions:
+    uid: 1000                       # default: 1000
+    gid: 1000                       # default: 1000
+
+  # Each entry describes one directory to mount.
+  entries:
+    - name: claude                  # human-readable label
+      source: /home/devuser/.claude # path on the remote host
+      target: ~/.claude             # path inside the container
+      backend: sshfs                # mount backend (currently only sshfs)
+
+    # Add more entries as needed:
+    # - name: ssh-keys
+    #   source: /home/devuser/.ssh
+    #   target: ~/.ssh
+    #   backend: sshfs
+
+# ---------------------------------------------------------------------------
+# Copies — files to copy from the dotfile repo into the container
+# ---------------------------------------------------------------------------
+copies:
+  - name: bashrc
+    source: config/.bashrc          # relative to dotfile_repo
+    target: ~/.bashrc
+    mode: replace                   # replace | append | skip
+
+  # - name: gitconfig
+  #   source: config/.gitconfig
+  #   target: ~/.gitconfig
+  #   mode: replace
+
+# ---------------------------------------------------------------------------
+# Packages — OS packages to install (via apt, apk, etc.)
+# ---------------------------------------------------------------------------
+packages:
+  - curl
+  - wget
+  # - git
+  # - jq
+
+# ---------------------------------------------------------------------------
+# AI CLI — launch an AI coding assistant after setup
+# ---------------------------------------------------------------------------
+ai_cli:
+  tool: claude-code                 # AI CLI tool to launch
+
+  # Provide ONE of the following (not both):
+  startup_prompt: "Review the project"
+  # startup_prompt_file: prompts/startup.md
