@@ -6,10 +6,13 @@ import (
 	"os/exec"
 )
 
-// PacmanManager implements PackageManager for Arch Linux systems using pacman.
+// PacmanManager implements the PackageManager interface for Arch Linux systems
+// using the pacman command. Commands are executed via sudo so that they have
+// the necessary privileges to modify the system package state.
 type PacmanManager struct{}
 
-// Update runs "sudo pacman -Sy --noconfirm" to refresh the package index.
+// Update refreshes the local pacman package database by running
+// "sudo pacman -Sy --noconfirm". It returns an error if the command fails.
 func (p *PacmanManager) Update() error {
 	fmt.Printf("[teeleport] packages: running sudo pacman -Sy --noconfirm\n")
 	cmd := exec.Command("sudo", "pacman", "-Sy", "--noconfirm")
@@ -18,7 +21,10 @@ func (p *PacmanManager) Update() error {
 	return cmd.Run()
 }
 
-// Install runs "sudo pacman -S --noconfirm <packages...>" to install the given packages.
+// Install installs the specified system packages by running
+// "sudo pacman -S --noconfirm" followed by the package names.
+// The packages parameter is a slice of package names to install.
+// It returns an error if the command fails.
 func (p *PacmanManager) Install(packages []string) error {
 	args := []string{"pacman", "-S", "--noconfirm"}
 	args = append(args, packages...)

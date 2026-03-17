@@ -19,8 +19,21 @@ const (
 //	<sourceContent>
 //	# END TEELEPORT: <name>
 //
-// If the block already exists, it is replaced (markers inclusive).
-// If it does not exist, it is appended at the end of the file.
+// If the block already exists in the target file, it is replaced (markers
+// inclusive). If it does not exist, it is appended at the end of the file. When
+// the target file does not yet exist, parent directories are created
+// automatically.
+//
+// name is a unique identifier for the sentinel block, used to construct the
+// BEGIN and END markers.
+//
+// sourceContent is the text to place between the sentinel markers.
+//
+// targetPath is the absolute path to the file that will be created or updated.
+//
+// ApplyAppend returns a non-nil error if the target file cannot be read (for
+// reasons other than not existing), if parent directories cannot be created, or
+// if the file cannot be written.
 func ApplyAppend(name, sourceContent, targetPath string) error {
 	beginMarker := sentinelBeginPrefix + name
 	endMarker := sentinelEndPrefix + name

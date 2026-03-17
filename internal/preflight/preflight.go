@@ -1,3 +1,6 @@
+// Package preflight implements pre-mount validation checks for Teeleport.
+// It verifies that required system dependencies (FUSE, SSH) are available
+// and properly configured before attempting any SSHFS mount operations.
 package preflight
 
 import (
@@ -9,9 +12,15 @@ import (
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
 )
 
-// RunChecks performs preflight checks required before mounting.
-// It only runs when mounts are defined. It checks for FUSE availability,
-// the sshfs binary, and SSH connectivity to the configured host.
+// RunChecks performs preflight checks required before attempting SSHFS mounts.
+// It verifies that the FUSE device (/dev/fuse) is accessible and that SSH
+// connectivity to the configured host is working. If cfg contains no mount
+// entries, RunChecks returns nil immediately without performing any checks.
+//
+// The cfg parameter supplies the full Teeleport configuration, including SSH
+// host, user, and port details used for the connectivity test.
+//
+// RunChecks returns a descriptive error if any check fails, or nil on success.
 func RunChecks(cfg *config.Config) error {
 	if len(cfg.Mounts.Entries) == 0 {
 		return nil

@@ -12,13 +12,23 @@ import (
 	"github.com/BenjaminBenetti/Teeleport/internal/packages"
 )
 
-// SSHFSBackend implements MountBackend using the sshfs command.
+// SSHFSBackend implements MountBackend using the sshfs command-line tool.
+// It connects to a remote host over SSH and exposes a remote directory as a
+// local FUSE mount.
 type SSHFSBackend struct {
-	SSH   config.SSHConfig
+	// SSH holds the SSH connection parameters (host, port, user, identity file)
+	// used when invoking the sshfs command.
+	SSH config.SSHConfig
+
+	// Perms holds the UID and GID that will own the mounted files on the local
+	// filesystem.
 	Perms config.PermConfig
 }
 
-// EnsureInstalled checks if sshfs is available and installs it if missing.
+// EnsureInstalled checks whether the sshfs binary is available on the system
+// PATH. If it is not found, EnsureInstalled attempts to install it via the
+// host package manager. It returns a non-nil error if sshfs cannot be made
+// available.
 func (b *SSHFSBackend) EnsureInstalled() error {
 	if _, err := exec.LookPath("sshfs"); err == nil {
 		return nil
@@ -37,7 +47,18 @@ func (b *SSHFSBackend) EnsureInstalled() error {
 	return nil
 }
 
-// Mount mounts source to target via sshfs.
+// Mount mounts a remote directory onto a local path using the sshfs command.
+//
+// source is the absolute path of the directory on the remote SSH host.
+// target is the absolute path of the local mount point directory; it must
+// already exist.
+//
+// The SSH user is taken from b.SSH.User; if that field is empty the current
+// OS user is used instead. Ownership of mounted files is set according to
+// b.Perms. The connection is configured with automatic reconnection and
+// periodic keepalive probes.
+//
+// It returns a non-nil error if the sshfs process exits with a failure status.
 func (b *SSHFSBackend) Mount(source, target string) error {
 	sshUser := b.SSH.User
 	if sshUser == "" {
@@ -78,7 +99,14 @@ func (b *SSHFSBackend) Mount(source, target string) error {
 	return nil
 }
 
-// IsMounted checks whether target appears as a mount point in /proc/mounts.
+// IsMounted reports whether target is currently listed as a mount point in
+// /proc/mounts.
+//
+// target is the absolute path of the local directory to check.
+//
+// It returns true if target appears as the second field of any line in
+// /proc/mounts, false if it does not, and a non-nil error if /proc/mounts
+// cannot be read or scanned.
 func (b *SSHFSBackend) IsMounted(target string) (bool, error) {
 	f, err := os.Open("/proc/mounts")
 	if err != nil {

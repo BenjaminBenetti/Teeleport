@@ -7,7 +7,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config is the top-level configuration for Teeleport.
+// Config is the top-level configuration for Teeleport. It aggregates every
+// section of the YAML configuration file: the dotfile repository location,
+// SSHFS mount definitions, file-copy rules, OS package lists, and AI CLI
+// preferences.
+//
+// Fields:
+//   - DotfileRepo: Path to the dotfiles repository. Defaults to "." (cwd).
+//   - Mounts:      SSH-based filesystem mount configuration.
+//   - Copies:      Files to copy from the dotfile repo into the container.
+//   - Packages:    OS packages to install during setup.
+//   - AICli:       AI CLI tool selection and startup behaviour.
 type Config struct {
 	DotfileRepo string      `yaml:"dotfile_repo"`
 	Mounts      MountConfig `yaml:"mounts"`
@@ -16,7 +26,13 @@ type Config struct {
 	AICli       AICLIConfig `yaml:"ai_cli"`
 }
 
-// MountConfig holds SSH connection details, permission defaults, and mount entries.
+// MountConfig holds SSH connection details, permission defaults, and the list
+// of directories to mount via SSHFS (or another backend).
+//
+// Fields:
+//   - SSH:         Connection parameters for the remote host.
+//   - Permissions: Default UID/GID applied to every mounted filesystem.
+//   - Entries:     Individual mount-point definitions.
 type MountConfig struct {
 	SSH         SSHConfig    `yaml:"ssh"`
 	Permissions PermConfig   `yaml:"permissions"`
@@ -24,6 +40,12 @@ type MountConfig struct {
 }
 
 // SSHConfig describes how to connect to the remote host for SSHFS mounts.
+//
+// Fields:
+//   - Host:         Hostname or IP address of the remote server.
+//   - User:         SSH username. If empty, the current OS user is assumed.
+//   - Port:         SSH port number. Defaults to 22 when left at zero.
+//   - IdentityFile: Path to the private key file (supports ~ expansion).
 type SSHConfig struct {
 	Host         string `yaml:"host"`
 	User         string `yaml:"user"`
@@ -31,14 +53,26 @@ type SSHConfig struct {
 	IdentityFile string `yaml:"identity_file"`
 }
 
-// PermConfig holds default UID/GID for mounted filesystems.
-// Pointer types allow distinguishing "not set" (nil) from "explicitly set to 0" (root).
+// PermConfig holds the default UID and GID applied to mounted filesystems.
+// Both fields are pointers so that the config layer can distinguish "not set"
+// (nil, which triggers the default of 1000) from "explicitly set to 0" (root).
+//
+// Fields:
+//   - UID: User ID for file ownership on the mount. Defaults to 1000.
+//   - GID: Group ID for file ownership on the mount. Defaults to 1000.
 type PermConfig struct {
 	UID *int `yaml:"uid"`
 	GID *int `yaml:"gid"`
 }
 
-// MountEntry represents a single directory to mount via SSHFS (or another backend).
+// MountEntry represents a single remote directory to mount into the local
+// filesystem via SSHFS or another backend.
+//
+// Fields:
+//   - Name:    Human-readable label used in log output and status reporting.
+//   - Source:  Remote path on the SSH host to expose.
+//   - Target:  Local path where the remote directory will be mounted.
+//   - Backend: Mount backend to use (e.g. "sshfs"). May be empty for the default.
 type MountEntry struct {
 	Name    string `yaml:"name"`
 	Source  string `yaml:"source"`
@@ -46,7 +80,14 @@ type MountEntry struct {
 	Backend string `yaml:"backend"`
 }
 
-// CopyEntry represents a file to copy from the dotfile repo into the container.
+// CopyEntry represents a single file to copy from the dotfile repository into
+// the container during setup.
+//
+// Fields:
+//   - Name:   Human-readable label used in log output and status reporting.
+//   - Source: Path relative to the dotfile repository root.
+//   - Target: Absolute destination path inside the container.
+//   - Mode:   Optional POSIX file-mode string (e.g. "0600") applied after copy.
 type CopyEntry struct {
 	Name   string `yaml:"name"`
 	Source string `yaml:"source"`
@@ -54,15 +95,29 @@ type CopyEntry struct {
 	Mode   string `yaml:"mode"`
 }
 
-// AICLIConfig controls which AI CLI tool to launch and its startup behaviour.
+// AICLIConfig controls which AI CLI tool to launch and how it should be
+// initialised at startup. StartupPrompt and StartupPromptFile are mutually
+// exclusive; setting both causes a validation error.
+//
+// Fields:
+//   - Tool:              Name or path of the AI CLI binary (e.g. "claude").
+//   - StartupPrompt:     Inline prompt text sent to the tool on launch.
+//   - StartupPromptFile: Path to a file whose contents are used as the startup prompt.
 type AICLIConfig struct {
 	Tool              string `yaml:"tool"`
 	StartupPrompt     string `yaml:"startup_prompt"`
 	StartupPromptFile string `yaml:"startup_prompt_file"`
 }
 
-// LoadConfig reads the YAML file at path, parses it into a Config, applies
-// sensible defaults, and validates the result.
+// LoadConfig reads the YAML configuration file at path, unmarshals it into a
+// Config struct, applies sensible defaults for any unset fields (see
+// applyDefaults), and validates the result with Config.Validate.
+//
+// Parameters:
+//   - path: absolute or relative filesystem path to the YAML config file.
+//
+// It returns the fully populated Config or an error if the file cannot be read,
+// contains invalid YAML, or fails validation.
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -85,6 +140,9 @@ func LoadConfig(path string) (*Config, error) {
 
 // applyDefaults fills in zero-value fields with sensible defaults.
 func (c *Config) applyDefaults() {
+	if c.DotfileRepo == "" {
+		c.DotfileRepo = "."
+	}
 	if c.Mounts.SSH.Port == 0 {
 		c.Mounts.SSH.Port = 22
 	}
@@ -98,7 +156,15 @@ func (c *Config) applyDefaults() {
 	}
 }
 
-// Validate checks that the configuration is internally consistent.
+// Validate checks that the Config is internally consistent and that all
+// required fields are present. Specifically it enforces that:
+//   - mounts.ssh.host is set when any mount entries exist,
+//   - every MountEntry has a non-empty Name, Source, and Target,
+//   - every CopyEntry has a non-empty Name, Source, and Target,
+//   - StartupPrompt and StartupPromptFile are not both set in AICLIConfig.
+//
+// It returns nil when the configuration is valid, or a descriptive error
+// identifying the first rule that was violated.
 func (c *Config) Validate() error {
 	// If mount entries are defined, SSH host is required.
 	if len(c.Mounts.Entries) > 0 {
@@ -141,13 +207,21 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// FindConfig locates a configuration file using the following precedence:
-//  1. Explicit path from CLI flag (flagPath)
-//  2. TEELEPORT_CONFIG environment variable
-//  3. ~/dotfiles/teeleport.config
-//  4. ~/.dotfiles/teeleport.config
+// FindConfig locates a Teeleport configuration file by probing a series of
+// candidate paths in the following precedence order:
+//  1. The explicit path supplied via the --config CLI flag (flagPath).
+//  2. The path in the TEELEPORT_CONFIG environment variable.
+//  3. ./teeleport.config (current working directory)
+//  4. ~/dotfiles/teeleport.config
+//  5. ~/.dotfiles/teeleport.config
 //
-// It returns the first path that exists, or an error if none are found.
+// Each candidate is expanded with ExpandPath before being checked.
+//
+// Parameters:
+//   - flagPath: optional config path from a CLI flag; pass "" to skip.
+//
+// It returns the absolute path of the first candidate that exists on disk, or
+// an error listing all searched paths if none are found.
 func FindConfig(flagPath string) (string, error) {
 	candidates := []string{}
 
@@ -160,6 +234,7 @@ func FindConfig(flagPath string) (string, error) {
 	}
 
 	candidates = append(candidates,
+		"teeleport.config",
 		ExpandPath("~/dotfiles/teeleport.config"),
 		ExpandPath("~/.dotfiles/teeleport.config"),
 	)

@@ -9,9 +9,20 @@ import (
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
 )
 
-// ProcessCopies processes each copy entry: resolves paths, then either replaces
-// or appends the source content into the target file. It logs progress and
-// continues on individual failures, returning a summary error at the end.
+// ProcessCopies processes each copy entry by resolving paths and then either
+// replacing or appending the source content into the target file. It logs
+// progress to stdout and continues past individual failures rather than
+// aborting early.
+//
+// dotfileRepo is the absolute path to the root of the dotfile repository, used
+// to resolve relative source paths in each entry.
+//
+// entries is the list of CopyEntry values describing the source, target, and
+// copy mode for each file operation.
+//
+// ProcessCopies returns a non-nil error that summarises all failed entry names
+// when one or more individual copy operations fail. It returns nil when every
+// entry is processed successfully.
 func ProcessCopies(dotfileRepo string, entries []config.CopyEntry) error {
 	var failures []string
 

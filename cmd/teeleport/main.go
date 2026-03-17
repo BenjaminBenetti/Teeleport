@@ -1,3 +1,7 @@
+// Package main is the entry point for the teeleport CLI. It loads the
+// configuration file, then orchestrates package installation, preflight
+// checks, SSHFS mounts, file copies, and optional AI CLI setup. Exit
+// code 0 indicates success; exit code 1 indicates one or more errors.
 package main
 
 import (
@@ -13,7 +17,9 @@ import (
 	"github.com/BenjaminBenetti/Teeleport/internal/preflight"
 )
 
-// version is set at build time via -ldflags "-X main.version=...".
+// version holds the build version string for the teeleport binary.
+// It defaults to "dev" and is overridden at build time via
+// -ldflags "-X main.version=<semver>".
 var version = "dev"
 
 func main() {

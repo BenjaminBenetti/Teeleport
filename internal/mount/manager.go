@@ -8,9 +8,17 @@ import (
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
 )
 
-// ProcessMounts iterates over the configured mount entries, creating
-// directories and mounting each one. It logs progress and continues past
-// individual failures, returning a summary error at the end.
+// ProcessMounts iterates over every entry in cfg, ensuring the required
+// backend is installed, creating local mount-point directories as needed,
+// and performing each mount. Already-mounted targets are silently skipped.
+//
+// cfg contains the full mount configuration including SSH connection
+// parameters, file-ownership permissions, and the list of mount entries.
+//
+// ProcessMounts is best-effort: if an individual mount fails the error is
+// recorded and processing continues with the remaining entries. It returns
+// a non-nil aggregate error summarising all failures, or nil if every mount
+// succeeded (or was already mounted).
 func ProcessMounts(cfg config.MountConfig) error {
 	var failures []string
 
