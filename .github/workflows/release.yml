@@ -15,9 +15,9 @@ jobs:
       matrix:
         arch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -28,7 +28,7 @@ jobs:
           GOARCH: ${{ matrix.arch }}
         run: go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o teeleport-linux-${{ matrix.arch }} ./cmd/teeleport
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: teeleport-linux-${{ matrix.arch }}
           path: teeleport-linux-${{ matrix.arch }}
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: release
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           merge-multiple: true
 
