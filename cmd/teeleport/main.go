@@ -38,7 +38,7 @@ func setupLogFile() func() {
 		return func() {}
 	}
 
-	logDir := filepath.Join(home, "teeleport")
+	logDir := filepath.Join(home, ".teeleport")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "[teeleport] warning: cannot create log directory %s: %v\n", logDir, err)
 		return func() {}

@@ -235,8 +235,11 @@ func FindConfig(flagPath string) (string, error) {
 
 	candidates = append(candidates,
 		"teeleport.config",
+		"teeleport.config.yaml",
 		ExpandPath("~/dotfiles/teeleport.config"),
+		ExpandPath("~/dotfiles/teeleport.config.yaml"),
 		ExpandPath("~/.dotfiles/teeleport.config"),
+		ExpandPath("~/.dotfiles/teeleport.config.yaml"),
 	)
 
 	for _, p := range candidates {
