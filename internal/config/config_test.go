@@ -273,9 +273,87 @@ func TestFindConfig_NotFound(t *testing.T) {
 	// Unset environment variable so it doesn't interfere.
 	t.Setenv("TEELEPORT_CONFIG", "")
 
+	// Use a temp dir for both cwd and HOME so default paths won't find a real config.
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(origDir) })
+	os.Chdir(tmpDir)
+	t.Setenv("HOME", tmpDir)
+
 	_, err := FindConfig("/nonexistent/path/to/config.yaml")
 	if err == nil {
 		t.Fatal("FindConfig should return error when no config is found")
+	}
+}
+
+func TestLoadConfig_TypeFileParsed(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "teeleport.config")
+
+	yaml := `mounts:
+  ssh:
+    host: example.com
+  entries:
+    - name: my-secret
+      source: /home/alice/.env
+      target: /workspaces/.env
+      type: file
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("writing temp config: %v", err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	if len(cfg.Mounts.Entries) != 1 {
+		t.Fatalf("len(Entries) = %d, want 1", len(cfg.Mounts.Entries))
+	}
+	if cfg.Mounts.Entries[0].Type != "file" {
+		t.Errorf("Entry.Type = %q, want %q", cfg.Mounts.Entries[0].Type, "file")
+	}
+}
+
+func TestValidate_InvalidMountType(t *testing.T) {
+	cfg := Config{
+		Mounts: MountConfig{
+			SSH: SSHConfig{
+				Host: "example.com",
+			},
+			Entries: []MountEntry{
+				{Name: "foo", Source: "/src", Target: "/tgt", Type: "invalid"},
+			},
+		},
+	}
+	cfg.applyDefaults()
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate should return error for invalid mount type")
+	}
+	want := `mounts.entries[0].type must be "directory" or "file", got "invalid"`
+	if got := err.Error(); got != want {
+		t.Errorf("unexpected error message:\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestValidate_EmptyMountType_OK(t *testing.T) {
+	cfg := Config{
+		Mounts: MountConfig{
+			SSH: SSHConfig{
+				Host: "example.com",
+			},
+			Entries: []MountEntry{
+				{Name: "foo", Source: "/src", Target: "/tgt"},
+			},
+		},
+	}
+	cfg.applyDefaults()
+
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate should pass when mount type is empty (defaults to directory), got: %v", err)
 	}
 }
 

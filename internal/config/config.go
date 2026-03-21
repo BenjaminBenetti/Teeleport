@@ -65,19 +65,21 @@ type PermConfig struct {
 	GID *int `yaml:"gid"`
 }
 
-// MountEntry represents a single remote directory to mount into the local
-// filesystem via SSHFS or another backend.
+// MountEntry represents a single remote directory or file to mount into the
+// local filesystem via SSHFS or another backend.
 //
 // Fields:
 //   - Name:    Human-readable label used in log output and status reporting.
 //   - Source:  Remote path on the SSH host to expose.
-//   - Target:  Local path where the remote directory will be mounted.
+//   - Target:  Local path where the remote directory or file will be mounted.
 //   - Backend: Mount backend to use (e.g. "sshfs"). May be empty for the default.
+//   - Type:    Mount type: "directory" (default when empty) or "file".
 type MountEntry struct {
 	Name    string `yaml:"name"`
 	Source  string `yaml:"source"`
 	Target  string `yaml:"target"`
 	Backend string `yaml:"backend"`
+	Type    string `yaml:"type"`    // "directory" (default) or "file"
 }
 
 // CopyEntry represents a single file to copy from the dotfile repository into
@@ -183,6 +185,9 @@ func (c *Config) Validate() error {
 		}
 		if e.Target == "" {
 			return fmt.Errorf("mounts.entries[%d].target is required", i)
+		}
+		if e.Type != "" && e.Type != "directory" && e.Type != "file" {
+			return fmt.Errorf("mounts.entries[%d].type must be \"directory\" or \"file\", got %q", i, e.Type)
 		}
 	}
 

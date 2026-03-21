@@ -34,6 +34,13 @@ mounts:
     #   target: ~/.ssh
     #   backend: sshfs
 
+    # Mount a single file (mounts parent dir behind the scenes, symlinks the file):
+    # - name: claude-json
+    #   source: /home/devuser/.claude.json
+    #   target: ~/.claude.json
+    #   type: file
+    #   backend: sshfs
+
 # ---------------------------------------------------------------------------
 # Copies — files to copy from the dotfile repo into the container
 # ---------------------------------------------------------------------------

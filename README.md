@@ -137,6 +137,21 @@ mounts:
       backend: sshfs
 ```
 
+**File mounts** work the same way but for individual files. Under the hood, Teeleport mounts the remote parent directory to a staging area and symlinks the file to the target path:
+
+```yaml
+mounts:
+  ssh:
+    host: my-server.example.com
+    user: devuser
+  entries:
+    - name: claude-json
+      source: /home/devuser/.claude.json
+      target: ~/.claude.json
+      type: file
+      backend: sshfs
+```
+
 **Prerequisites for mounts:**
 
 Your `devcontainer.json` must grant FUSE access. Add one of:
@@ -223,12 +238,13 @@ Path to the dotfile repo root. All copy `source` paths resolve relative to this.
 
 ### `mounts.entries[]`
 
-| Field | Required | Description |
-|---|---|---|
-| `name` | Yes | Human-readable label for logs |
-| `source` | Yes | Absolute path on the remote host |
-| `target` | Yes | Local mount point (supports `~`) |
-| `backend` | Yes | Mount backend: `sshfs` |
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `name` | Yes | -- | Human-readable label for logs |
+| `source` | Yes | -- | Absolute path on the remote host |
+| `target` | Yes | -- | Local mount point (supports `~`) |
+| `type` | No | `directory` | `directory` or `file`. File mounts symlink a single file from a staged parent directory mount. |
+| `backend` | Yes | -- | Mount backend: `sshfs` |
 
 ### `copies[]`
 
