@@ -6,6 +6,6 @@ import "github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 // It mounts the .claude directory and .claude.json settings file
 // from the remote host.
 var Claude = []domainmodel.MountEntry{
-	{Name: "claude", Source: "/var/opt/teeleport/.claude", Target: "~/.claude"},
-	{Name: "claude-json", Source: "/var/opt/teeleport/.claude.json", Target: "~/.claude.json", Type: "file", File: domainmodel.FileConfig{DefaultContent: "{}"}},
+	{Name: "claude", Source: "/var/opt/teeleport/.claude", Target: "~/.claude", ForceMount: true},
+	{Name: "claude-json", Source: "/var/opt/teeleport/.claude.json", Target: "~/.claude.json", Type: "file", File: domainmodel.FileConfig{DefaultContent: "{}"}, ForceMount: true},
 }

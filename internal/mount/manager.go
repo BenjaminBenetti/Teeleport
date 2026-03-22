@@ -63,8 +63,20 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 			if linkDest, err := os.Readlink(target); err == nil {
 				stagingPath := filepath.Dir(linkDest)
 				if mounted, mErr := backend.IsMounted(stagingPath); mErr == nil && mounted {
-					fmt.Printf("[teeleport] mount: %s → %s ... already mounted, skipping\n", entry.Name, entry.Target)
-					continue
+					if entry.ForceMount {
+						actualType := mountedFsType(stagingPath)
+						if actualType != "" && actualType != backend.FsType() {
+							fmt.Printf("[teeleport] mount: %s → %s ... conflicting mount (%s), unmounting\n", entry.Name, entry.Target, actualType)
+							exec.Command("umount", stagingPath).Run()
+							// Fall through to normal mount logic below
+						} else {
+							fmt.Printf("[teeleport] mount: %s → %s ... already mounted, skipping\n", entry.Name, entry.Target)
+							continue
+						}
+					} else {
+						fmt.Printf("[teeleport] mount: %s → %s ... already mounted, skipping\n", entry.Name, entry.Target)
+						continue
+					}
 				}
 			}
 
@@ -81,7 +93,18 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 				ensureRemotePath(cfg.SSH, entry.Source, true, entry.File.DefaultContent)
 
 				// Check if staging is already mounted
-				if mounted, _ := backend.IsMounted(staging); !mounted {
+				mounted, _ := backend.IsMounted(staging)
+				if mounted {
+					if entry.ForceMount {
+						actualType := mountedFsType(staging)
+						if actualType != "" && actualType != backend.FsType() {
+							fmt.Printf("[teeleport] mount: %s → %s ... conflicting staging mount (%s), unmounting\n", entry.Name, entry.Target, actualType)
+							exec.Command("umount", staging).Run()
+							mounted = false // proceed with mount below
+						}
+					}
+				}
+				if !mounted {
 					if err := os.MkdirAll(staging, 0o755); err != nil {
 						fmt.Printf("[teeleport] mount: %s → %s ... failed creating staging dir: %v\n", entry.Name, entry.Target, err)
 						failures = append(failures, fmt.Sprintf("%s: %v", entry.Name, err))
@@ -131,8 +154,20 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 			continue
 		}
 		if mounted {
-			fmt.Printf("[teeleport] mount: %s → %s ... already mounted, skipping\n", entry.Name, entry.Target)
-			continue
+			if entry.ForceMount {
+				actualType := mountedFsType(target)
+				if actualType != "" && actualType != backend.FsType() {
+					fmt.Printf("[teeleport] mount: %s → %s ... conflicting mount (%s), unmounting\n", entry.Name, entry.Target, actualType)
+					exec.Command("umount", target).Run()
+					// Fall through to normal mount logic below
+				} else {
+					fmt.Printf("[teeleport] mount: %s → %s ... already mounted, skipping\n", entry.Name, entry.Target)
+					continue
+				}
+			} else {
+				fmt.Printf("[teeleport] mount: %s → %s ... already mounted, skipping\n", entry.Name, entry.Target)
+				continue
+			}
 		}
 
 		// Ensure the remote directory exists

@@ -104,6 +104,23 @@ func TestRemoteEnsureCmd_FileWithoutDefaultContent(t *testing.T) {
 	}
 }
 
+func TestMountedFsType_NotMounted(t *testing.T) {
+	// A path that is definitely not a mount point should return ""
+	got := mountedFsType("/tmp/definitely-not-a-mount-point-xyz")
+	if got != "" {
+		t.Errorf("mountedFsType for non-mounted path = %q, want empty string", got)
+	}
+}
+
+func TestSSHFSBackend_FsType(t *testing.T) {
+	b := &SSHFSBackend{}
+	got := b.FsType()
+	want := "fuse.sshfs"
+	if got != want {
+		t.Errorf("SSHFSBackend.FsType() = %q, want %q", got, want)
+	}
+}
+
 func TestStagingDir(t *testing.T) {
 	got := stagingDir("claude-json")
 	if got == "" {

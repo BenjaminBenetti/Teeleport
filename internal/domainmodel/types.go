@@ -40,7 +40,8 @@ type MountEntry struct {
 	Backend string     `yaml:"backend"`
 	Type    string     `yaml:"type"`   // "directory" (default) or "file"
 	Preset  string     `yaml:"preset"` // If set, expands to a predefined set of mounts
-	File    FileConfig `yaml:"file"`   // File-specific options (only used when Type == "file")
+	File       FileConfig `yaml:"file"`        // File-specific options (only used when Type == "file")
+	ForceMount bool       `yaml:"force_mount"` // If true, unmounts conflicting mounts (wrong fs type) before remounting
 }
 
 // CopyEntry represents a single file to copy from the dotfile repository into

@@ -100,6 +100,31 @@ func (b *SSHFSBackend) Mount(source, target string) error {
 	return nil
 }
 
+// FsType returns the filesystem type string for SSHFS mounts as it appears
+// in /proc/mounts.
+func (b *SSHFSBackend) FsType() string {
+	return "fuse.sshfs"
+}
+
+// mountedFsType reads /proc/mounts and returns the filesystem type (third
+// field) for the given mount point target, or "" if the target is not mounted
+// or /proc/mounts cannot be read.
+func mountedFsType(target string) string {
+	f, err := os.Open("/proc/mounts")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) >= 3 && fields[1] == target {
+			return fields[2]
+		}
+	}
+	return ""
+}
+
 // IsMounted reports whether target is currently listed as a mount point in
 // /proc/mounts.
 //

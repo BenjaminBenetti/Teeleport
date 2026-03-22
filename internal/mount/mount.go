@@ -28,6 +28,10 @@ type MountBackend interface {
 	// It returns true if the path is mounted, false otherwise, and a non-nil
 	// error if the check itself fails.
 	IsMounted(target string) (bool, error)
+
+	// FsType returns the expected filesystem type string for this backend
+	// as it appears in /proc/mounts (e.g. "fuse.sshfs").
+	FsType() string
 }
 
 // NewBackend creates a MountBackend for the given backend name.

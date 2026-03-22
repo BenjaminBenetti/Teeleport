@@ -90,7 +90,19 @@ func (c *Config) expandPresets() error {
 			if err != nil {
 				return err
 			}
-			expanded = append(expanded, entries...)
+			// Apply user-defined overrides from the preset entry onto each expanded entry
+			for _, e := range entries {
+				if entry.Backend != "" {
+					e.Backend = entry.Backend
+				}
+				if entry.ForceMount {
+					e.ForceMount = true
+				}
+				if entry.File.DefaultContent != "" {
+					e.File.DefaultContent = entry.File.DefaultContent
+				}
+				expanded = append(expanded, e)
+			}
 		} else {
 			expanded = append(expanded, entry)
 		}

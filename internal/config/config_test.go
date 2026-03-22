@@ -426,3 +426,94 @@ func TestLoadConfig_PresetExpansion(t *testing.T) {
 		t.Errorf("entries[2].Name = %q, want \"custom\"", cfg.Mounts.Entries[2].Name)
 	}
 }
+
+func TestPresetExpansion_BackendOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "teeleport.config")
+
+	yaml := `mounts:
+  ssh:
+    host: example.com
+    user: testuser
+  entries:
+    - name: claude-nfs
+      preset: claude
+      backend: nfs
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("writing temp config: %v", err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	for i, e := range cfg.Mounts.Entries {
+		if e.Backend != "nfs" {
+			t.Errorf("entries[%d].Backend = %q, want \"nfs\" (user override)", i, e.Backend)
+		}
+	}
+}
+
+func TestPresetExpansion_ForceMountOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "teeleport.config")
+
+	yaml := `mounts:
+  ssh:
+    host: example.com
+    user: testuser
+  entries:
+    - name: claude-force
+      preset: claude
+      force_mount: true
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("writing temp config: %v", err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	for i, e := range cfg.Mounts.Entries {
+		if !e.ForceMount {
+			t.Errorf("entries[%d].ForceMount = false, want true (user override)", i)
+		}
+	}
+}
+
+func TestPresetExpansion_NoOverrideKeepsPresetValues(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "teeleport.config")
+
+	yaml := `mounts:
+  ssh:
+    host: example.com
+    user: testuser
+  entries:
+    - name: claude-default
+      preset: claude
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("writing temp config: %v", err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	// Preset values should be preserved when user doesn't override
+	if cfg.Mounts.Entries[0].Source != "/var/opt/teeleport/.claude" {
+		t.Errorf("entries[0].Source = %q, want preset value", cfg.Mounts.Entries[0].Source)
+	}
+	if cfg.Mounts.Entries[1].Type != "file" {
+		t.Errorf("entries[1].Type = %q, want \"file\" from preset", cfg.Mounts.Entries[1].Type)
+	}
+	if cfg.Mounts.Entries[1].File.DefaultContent != "{}" {
+		t.Errorf("entries[1].File.DefaultContent = %q, want \"{}\" from preset", cfg.Mounts.Entries[1].File.DefaultContent)
+	}
+}
