@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
+	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 )
 
 // AICli is the interface that every AI CLI backend must implement.
@@ -50,7 +51,7 @@ func NewAICli(tool string) (AICli, error) {
 // RunAICli always returns nil. Any errors encountered during installation or
 // execution are logged as warnings to stdout rather than propagated, so the
 // caller never needs to treat them as fatal.
-func RunAICli(cfg config.AICLIConfig, dotfileRepo string) error {
+func RunAICli(cfg domainmodel.AICLIConfig, dotfileRepo string) error {
 	if cfg.Tool == "" {
 		fmt.Println("[teeleport] ai-cli: no tool configured, skipping")
 		return nil

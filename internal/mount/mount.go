@@ -3,7 +3,7 @@ package mount
 import (
 	"fmt"
 
-	"github.com/BenjaminBenetti/Teeleport/internal/config"
+	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 )
 
 // MountBackend is the interface that all mount backends must implement.
@@ -39,7 +39,7 @@ type MountBackend interface {
 //
 // It returns the initialised MountBackend and a nil error on success, or a
 // nil MountBackend and a descriptive error if backendName is not recognised.
-func NewBackend(backendName string, ssh config.SSHConfig, perms config.PermConfig) (MountBackend, error) {
+func NewBackend(backendName string, ssh domainmodel.SSHConfig, perms domainmodel.PermConfig) (MountBackend, error) {
 	switch backendName {
 	case "sshfs":
 		return &SSHFSBackend{SSH: ssh, Perms: perms}, nil

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/BenjaminBenetti/Teeleport/internal/config"
+	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 )
 
 func TestIsFileMount(t *testing.T) {
@@ -17,7 +17,7 @@ func TestIsFileMount(t *testing.T) {
 		{"", false},
 	}
 	for _, tt := range tests {
-		entry := config.MountEntry{Type: tt.entryType}
+		entry := domainmodel.MountEntry{Type: tt.entryType}
 		if got := isFileMount(entry); got != tt.want {
 			t.Errorf("isFileMount(Type=%q) = %v, want %v", tt.entryType, got, tt.want)
 		}

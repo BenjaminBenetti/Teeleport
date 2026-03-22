@@ -152,6 +152,24 @@ mounts:
       backend: sshfs
 ```
 
+**Presets** provide predefined mount configurations for common tools:
+
+```yaml
+mounts:
+  ssh:
+    host: my-server.example.com
+    user: devuser
+  entries:
+    - name: claude-preset
+      preset: claude
+```
+
+Available presets:
+
+| Preset | Description |
+|---|---|
+| `claude` | Mounts `~/.claude` directory and `~/.claude.json` file from `/var/opt/teeleport/` |
+
 **Prerequisites for mounts:**
 
 Your `devcontainer.json` must grant FUSE access. Add one of:
@@ -241,10 +259,11 @@ Path to the dotfile repo root. All copy `source` paths resolve relative to this.
 | Field | Required | Default | Description |
 |---|---|---|---|
 | `name` | Yes | -- | Human-readable label for logs |
-| `source` | Yes | -- | Absolute path on the remote host |
-| `target` | Yes | -- | Local mount point (supports `~`) |
+| `source` | Yes* | -- | Absolute path on the remote host |
+| `target` | Yes* | -- | Local mount point (supports `~`) |
 | `type` | No | `directory` | `directory` or `file`. File mounts symlink a single file from a staged parent directory mount. |
-| `backend` | Yes | -- | Mount backend: `sshfs` |
+| `backend` | Yes* | -- | Mount backend: `sshfs` |
+| `preset` | No | -- | Use a predefined mount preset instead of `source`/`target`/`backend` (e.g. `claude`) |
 
 ### `copies[]`
 

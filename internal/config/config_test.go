@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 )
 
 func TestLoadConfig_FullyPopulated(t *testing.T) {
@@ -191,7 +193,7 @@ func TestLoadConfig_DefaultsApplied(t *testing.T) {
 
 func TestValidate_MutuallyExclusivePrompt(t *testing.T) {
 	cfg := Config{
-		AICli: []AICLIConfig{{
+		AICli: []domainmodel.AICLIConfig{{
 			StartupPrompt:     "hello",
 			StartupPromptFile: "/some/file",
 		}},
@@ -209,8 +211,8 @@ func TestValidate_MutuallyExclusivePrompt(t *testing.T) {
 
 func TestValidate_MountEntriesWithoutSSHHost(t *testing.T) {
 	cfg := Config{
-		Mounts: MountConfig{
-			Entries: []MountEntry{
+		Mounts: domainmodel.MountConfig{
+			Entries: []domainmodel.MountEntry{
 				{Name: "foo", Source: "/src", Target: "/tgt"},
 			},
 		},
@@ -228,11 +230,11 @@ func TestValidate_MountEntriesWithoutSSHHost(t *testing.T) {
 
 func TestValidate_MountEntriesWithoutSSHUser_OK(t *testing.T) {
 	cfg := Config{
-		Mounts: MountConfig{
-			SSH: SSHConfig{
+		Mounts: domainmodel.MountConfig{
+			SSH: domainmodel.SSHConfig{
 				Host: "example.com",
 			},
-			Entries: []MountEntry{
+			Entries: []domainmodel.MountEntry{
 				{Name: "foo", Source: "/src", Target: "/tgt"},
 			},
 		},
@@ -321,11 +323,11 @@ func TestLoadConfig_TypeFileParsed(t *testing.T) {
 
 func TestValidate_InvalidMountType(t *testing.T) {
 	cfg := Config{
-		Mounts: MountConfig{
-			SSH: SSHConfig{
+		Mounts: domainmodel.MountConfig{
+			SSH: domainmodel.SSHConfig{
 				Host: "example.com",
 			},
-			Entries: []MountEntry{
+			Entries: []domainmodel.MountEntry{
 				{Name: "foo", Source: "/src", Target: "/tgt", Type: "invalid"},
 			},
 		},
@@ -344,11 +346,11 @@ func TestValidate_InvalidMountType(t *testing.T) {
 
 func TestValidate_EmptyMountType_OK(t *testing.T) {
 	cfg := Config{
-		Mounts: MountConfig{
-			SSH: SSHConfig{
+		Mounts: domainmodel.MountConfig{
+			SSH: domainmodel.SSHConfig{
 				Host: "example.com",
 			},
-			Entries: []MountEntry{
+			Entries: []domainmodel.MountEntry{
 				{Name: "foo", Source: "/src", Target: "/tgt"},
 			},
 		},
@@ -378,5 +380,49 @@ func TestLoadConfig_InvalidYAML(t *testing.T) {
 	_, err := LoadConfig(cfgPath)
 	if err == nil {
 		t.Fatal("LoadConfig should return error for invalid YAML")
+	}
+}
+
+func TestLoadConfig_PresetExpansion(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "teeleport.config")
+
+	yaml := `mounts:
+  ssh:
+    host: example.com
+    user: testuser
+  entries:
+    - name: use-claude
+      preset: claude
+    - name: custom
+      source: /custom/path
+      target: ~/custom
+      backend: sshfs
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("writing temp config: %v", err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	// Claude preset expands to 2 entries + 1 manual = 3 total
+	if len(cfg.Mounts.Entries) != 3 {
+		t.Fatalf("expected 3 mount entries after preset expansion, got %d", len(cfg.Mounts.Entries))
+	}
+
+	// First two are from the claude preset
+	if cfg.Mounts.Entries[0].Name != "claude" {
+		t.Errorf("entries[0].Name = %q, want \"claude\"", cfg.Mounts.Entries[0].Name)
+	}
+	if cfg.Mounts.Entries[1].Name != "claude-json" {
+		t.Errorf("entries[1].Name = %q, want \"claude-json\"", cfg.Mounts.Entries[1].Name)
+	}
+
+	// Third is the manual entry
+	if cfg.Mounts.Entries[2].Name != "custom" {
+		t.Errorf("entries[2].Name = %q, want \"custom\"", cfg.Mounts.Entries[2].Name)
 	}
 }

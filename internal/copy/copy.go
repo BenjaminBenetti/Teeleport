@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
+	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 )
 
 // ProcessCopies processes each copy entry by resolving paths and then either
@@ -23,7 +24,7 @@ import (
 // ProcessCopies returns a non-nil error that summarises all failed entry names
 // when one or more individual copy operations fail. It returns nil when every
 // entry is processed successfully.
-func ProcessCopies(dotfileRepo string, entries []config.CopyEntry) error {
+func ProcessCopies(dotfileRepo string, entries []domainmodel.CopyEntry) error {
 	var failures []string
 
 	for _, entry := range entries {

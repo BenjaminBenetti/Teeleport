@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
+	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 )
 
 // ProcessMounts iterates over every entry in cfg, ensuring the required
@@ -23,7 +24,7 @@ import (
 // recorded and processing continues with the remaining entries. It returns
 // a non-nil aggregate error summarising all failures, or nil if every mount
 // succeeded (or was already mounted).
-func ProcessMounts(cfg config.MountConfig) error {
+func ProcessMounts(cfg domainmodel.MountConfig) error {
 	var failures []string
 
 	// Cache backends by name so EnsureInstalled only runs once per backend type.
@@ -159,7 +160,7 @@ func ProcessMounts(cfg config.MountConfig) error {
 }
 
 // isFileMount returns true if the entry is a file mount.
-func isFileMount(entry config.MountEntry) bool {
+func isFileMount(entry domainmodel.MountEntry) bool {
 	return entry.Type == "file"
 }
 
@@ -194,7 +195,7 @@ func remoteEnsureCmd(remotePath string, isFile bool) string {
 // ensureRemotePath ensures that the remote path exists on the SSH host.
 // It runs the appropriate mkdir/touch command via SSH.
 // Errors are logged as warnings but do not prevent the mount attempt.
-func ensureRemotePath(ssh config.SSHConfig, remotePath string, isFile bool) {
+func ensureRemotePath(ssh domainmodel.SSHConfig, remotePath string, isFile bool) {
 	sshUser := ssh.User
 	if sshUser == "" {
 		u, err := user.Current()

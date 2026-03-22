@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/BenjaminBenetti/Teeleport/internal/config/mountpresets"
+	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 	"gopkg.in/yaml.v3"
 )
 
@@ -19,101 +21,17 @@ import (
 //   - Packages:    OS packages to install during setup.
 //   - AICli:       List of AI CLI tools and their startup behaviour.
 type Config struct {
-	DotfileRepo string        `yaml:"dotfile_repo"`
-	Mounts      MountConfig   `yaml:"mounts"`
-	Copies      []CopyEntry   `yaml:"copies"`
-	Packages    []string      `yaml:"packages"`
-	AICli       []AICLIConfig `yaml:"ai_cli"`
-}
-
-// MountConfig holds SSH connection details, permission defaults, and the list
-// of directories to mount via SSHFS (or another backend).
-//
-// Fields:
-//   - SSH:         Connection parameters for the remote host.
-//   - Permissions: Default UID/GID applied to every mounted filesystem.
-//   - Entries:     Individual mount-point definitions.
-type MountConfig struct {
-	SSH         SSHConfig    `yaml:"ssh"`
-	Permissions PermConfig   `yaml:"permissions"`
-	Entries     []MountEntry `yaml:"entries"`
-}
-
-// SSHConfig describes how to connect to the remote host for SSHFS mounts.
-//
-// Fields:
-//   - Host:         Hostname or IP address of the remote server.
-//   - User:         SSH username. If empty, the current OS user is assumed.
-//   - Port:         SSH port number. Defaults to 22 when left at zero.
-//   - IdentityFile: Path to the private key file (supports ~ expansion).
-type SSHConfig struct {
-	Host         string `yaml:"host"`
-	User         string `yaml:"user"`
-	Port         int    `yaml:"port"`
-	IdentityFile string `yaml:"identity_file"`
-}
-
-// PermConfig holds the default UID and GID applied to mounted filesystems.
-// Both fields are pointers so that the config layer can distinguish "not set"
-// (nil, which triggers the default of 1000) from "explicitly set to 0" (root).
-//
-// Fields:
-//   - UID: User ID for file ownership on the mount. Defaults to 1000.
-//   - GID: Group ID for file ownership on the mount. Defaults to 1000.
-type PermConfig struct {
-	UID *int `yaml:"uid"`
-	GID *int `yaml:"gid"`
-}
-
-// MountEntry represents a single remote directory or file to mount into the
-// local filesystem via SSHFS or another backend.
-//
-// Fields:
-//   - Name:    Human-readable label used in log output and status reporting.
-//   - Source:  Remote path on the SSH host to expose.
-//   - Target:  Local path where the remote directory or file will be mounted.
-//   - Backend: Mount backend to use (e.g. "sshfs"). May be empty for the default.
-//   - Type:    Mount type: "directory" (default when empty) or "file".
-type MountEntry struct {
-	Name    string `yaml:"name"`
-	Source  string `yaml:"source"`
-	Target  string `yaml:"target"`
-	Backend string `yaml:"backend"`
-	Type    string `yaml:"type"`    // "directory" (default) or "file"
-}
-
-// CopyEntry represents a single file to copy from the dotfile repository into
-// the container during setup.
-//
-// Fields:
-//   - Name:   Human-readable label used in log output and status reporting.
-//   - Source: Path relative to the dotfile repository root.
-//   - Target: Absolute destination path inside the container.
-//   - Mode:   Optional POSIX file-mode string (e.g. "0600") applied after copy.
-type CopyEntry struct {
-	Name   string `yaml:"name"`
-	Source string `yaml:"source"`
-	Target string `yaml:"target"`
-	Mode   string `yaml:"mode"`
-}
-
-// AICLIConfig controls which AI CLI tool to launch and how it should be
-// initialised at startup. StartupPrompt and StartupPromptFile are mutually
-// exclusive; setting both causes a validation error.
-//
-// Fields:
-//   - Tool:              Name or path of the AI CLI binary (e.g. "claude").
-//   - StartupPrompt:     Inline prompt text sent to the tool on launch.
-//   - StartupPromptFile: Path to a file whose contents are used as the startup prompt.
-type AICLIConfig struct {
-	Tool              string `yaml:"tool"`
-	StartupPrompt     string `yaml:"startup_prompt"`
-	StartupPromptFile string `yaml:"startup_prompt_file"`
+	DotfileRepo string                    `yaml:"dotfile_repo"`
+	Mounts      domainmodel.MountConfig   `yaml:"mounts"`
+	Copies      []domainmodel.CopyEntry   `yaml:"copies"`
+	Packages    []string                  `yaml:"packages"`
+	AICli       []domainmodel.AICLIConfig `yaml:"ai_cli"`
 }
 
 // LoadConfig reads the YAML configuration file at path, unmarshals it into a
 // Config struct, applies sensible defaults for any unset fields (see
-// applyDefaults), and validates the result with Config.Validate.
+// applyDefaults), expands mount presets, and validates the result with
+// Config.Validate.
 //
 // Parameters:
 //   - path: absolute or relative filesystem path to the YAML config file.
@@ -132,6 +50,10 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	cfg.applyDefaults()
+
+	if err := cfg.expandPresets(); err != nil {
+		return nil, fmt.Errorf("expanding presets: %w", err)
+	}
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
@@ -156,6 +78,25 @@ func (c *Config) applyDefaults() {
 		defaultGID := 1000
 		c.Mounts.Permissions.GID = &defaultGID
 	}
+}
+
+// expandPresets replaces mount entries that reference a preset with the
+// concrete mount entries defined by that preset.
+func (c *Config) expandPresets() error {
+	var expanded []domainmodel.MountEntry
+	for _, entry := range c.Mounts.Entries {
+		if entry.Preset != "" {
+			entries, err := mountpresets.Get(entry.Preset)
+			if err != nil {
+				return err
+			}
+			expanded = append(expanded, entries...)
+		} else {
+			expanded = append(expanded, entry)
+		}
+	}
+	c.Mounts.Entries = expanded
+	return nil
 }
 
 // Validate checks that the Config is internally consistent and that all

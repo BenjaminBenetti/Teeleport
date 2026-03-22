@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
+	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
 	"github.com/BenjaminBenetti/Teeleport/internal/packages"
 )
 
@@ -18,11 +19,11 @@ import (
 type SSHFSBackend struct {
 	// SSH holds the SSH connection parameters (host, port, user, identity file)
 	// used when invoking the sshfs command.
-	SSH config.SSHConfig
+	SSH domainmodel.SSHConfig
 
 	// Perms holds the UID and GID that will own the mounted files on the local
 	// filesystem.
-	Perms config.PermConfig
+	Perms domainmodel.PermConfig
 }
 
 // EnsureInstalled checks whether the sshfs binary is available on the system

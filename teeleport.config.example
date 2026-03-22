@@ -23,6 +23,10 @@ mounts:
 
   # Each entry describes one directory to mount.
   entries:
+    # Use a preset to quickly add common mounts:
+    # - name: claude-preset
+    #   preset: claude
+
     - name: claude                  # human-readable label
       source: /home/devuser/.claude # path on the remote host
       target: ~/.claude             # path inside the container
