@@ -22,6 +22,9 @@ func TestGet_Claude(t *testing.T) {
 	if entries[1].Type != "file" {
 		t.Errorf("entries[1].Type = %q, want \"file\"", entries[1].Type)
 	}
+	if entries[1].File.DefaultContent != "{}" {
+		t.Errorf("entries[1].File.DefaultContent = %q, want \"{}\"", entries[1].File.DefaultContent)
+	}
 	// Verify no backend is set (presets are backend-agnostic)
 	if entries[0].Backend != "" {
 		t.Errorf("entries[0].Backend = %q, want empty (backend-agnostic)", entries[0].Backend)

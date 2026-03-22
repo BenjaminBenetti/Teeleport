@@ -264,6 +264,7 @@ Path to the dotfile repo root. All copy `source` paths resolve relative to this.
 | `type` | No | `directory` | `directory` or `file`. File mounts symlink a single file from a staged parent directory mount. |
 | `backend` | Yes* | -- | Mount backend: `sshfs` |
 | `preset` | No | -- | Use a predefined mount preset instead of `source`/`target`/`backend` (e.g. `claude`) |
+| `file.default_content` | No | -- | Content to initialize the file with on the remote if it doesn't exist (only for `type: file`) |
 
 ### `copies[]`
 

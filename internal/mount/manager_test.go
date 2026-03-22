@@ -57,7 +57,7 @@ func TestRemoteBasename(t *testing.T) {
 }
 
 func TestRemoteEnsureCmd_Directory(t *testing.T) {
-	got := remoteEnsureCmd("/home/user/.claude", false)
+	got := remoteEnsureCmd("/home/user/.claude", false, "")
 	want := `mkdir -p "/home/user/.claude"`
 	if got != want {
 		t.Errorf("remoteEnsureCmd(dir) = %q, want %q", got, want)
@@ -65,26 +65,42 @@ func TestRemoteEnsureCmd_Directory(t *testing.T) {
 }
 
 func TestRemoteEnsureCmd_File(t *testing.T) {
-	got := remoteEnsureCmd("/home/user/.claude.json", true)
-	want := `mkdir -p "/home/user" && touch "/home/user/.claude.json"`
+	got := remoteEnsureCmd("/home/user/.claude.json", true, "")
+	want := `mkdir -p "/home/user" && [ -f "/home/user/.claude.json" ] || touch "/home/user/.claude.json"`
 	if got != want {
 		t.Errorf("remoteEnsureCmd(file) = %q, want %q", got, want)
 	}
 }
 
 func TestRemoteEnsureCmd_NestedFile(t *testing.T) {
-	got := remoteEnsureCmd("/home/user/.config/app/settings.json", true)
-	want := `mkdir -p "/home/user/.config/app" && touch "/home/user/.config/app/settings.json"`
+	got := remoteEnsureCmd("/home/user/.config/app/settings.json", true, "")
+	want := `mkdir -p "/home/user/.config/app" && [ -f "/home/user/.config/app/settings.json" ] || touch "/home/user/.config/app/settings.json"`
 	if got != want {
 		t.Errorf("remoteEnsureCmd(nested file) = %q, want %q", got, want)
 	}
 }
 
 func TestRemoteEnsureCmd_RootFile(t *testing.T) {
-	got := remoteEnsureCmd("/file.txt", true)
-	want := `mkdir -p "/" && touch "/file.txt"`
+	got := remoteEnsureCmd("/file.txt", true, "")
+	want := `mkdir -p "/" && [ -f "/file.txt" ] || touch "/file.txt"`
 	if got != want {
 		t.Errorf("remoteEnsureCmd(root file) = %q, want %q", got, want)
+	}
+}
+
+func TestRemoteEnsureCmd_FileWithDefaultContent(t *testing.T) {
+	got := remoteEnsureCmd("/home/user/.claude.json", true, "{}")
+	want := `mkdir -p "/home/user" && [ -f "/home/user/.claude.json" ] || echo "{}" > "/home/user/.claude.json"`
+	if got != want {
+		t.Errorf("remoteEnsureCmd(file with default content) = %q, want %q", got, want)
+	}
+}
+
+func TestRemoteEnsureCmd_FileWithoutDefaultContent(t *testing.T) {
+	got := remoteEnsureCmd("/home/user/.claude.json", true, "")
+	want := `mkdir -p "/home/user" && [ -f "/home/user/.claude.json" ] || touch "/home/user/.claude.json"`
+	if got != want {
+		t.Errorf("remoteEnsureCmd(file without default content) = %q, want %q", got, want)
 	}
 }
 

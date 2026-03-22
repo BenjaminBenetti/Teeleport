@@ -78,7 +78,7 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 				staging = stagingDir(entry.Name)
 
 				// Ensure the remote file and its parent directory exist
-				ensureRemotePath(cfg.SSH, entry.Source, true)
+				ensureRemotePath(cfg.SSH, entry.Source, true, entry.File.DefaultContent)
 
 				// Check if staging is already mounted
 				if mounted, _ := backend.IsMounted(staging); !mounted {
@@ -136,7 +136,7 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 		}
 
 		// Ensure the remote directory exists
-		ensureRemotePath(cfg.SSH, entry.Source, false)
+		ensureRemotePath(cfg.SSH, entry.Source, false, "")
 
 		if err := os.MkdirAll(target, 0o755); err != nil {
 			fmt.Printf("[teeleport] mount: %s → %s ... failed creating directory: %v\n", entry.Name, entry.Target, err)
@@ -183,11 +183,16 @@ func remoteBasename(source string) string {
 
 // remoteEnsureCmd returns the shell command to ensure a remote path exists.
 // For directories it returns "mkdir -p <path>".
-// For files it returns "mkdir -p <parent> && touch <path>".
-func remoteEnsureCmd(remotePath string, isFile bool) string {
+// For files it returns a command that creates the parent directory and, if the
+// file does not already exist, creates it with defaultContent (or touch if no
+// default content is provided).
+func remoteEnsureCmd(remotePath string, isFile bool, defaultContent string) string {
 	if isFile {
 		parent := path.Dir(remotePath)
-		return fmt.Sprintf("mkdir -p %q && touch %q", parent, remotePath)
+		if defaultContent != "" {
+			return fmt.Sprintf("mkdir -p %q && [ -f %q ] || echo %q > %q", parent, remotePath, defaultContent, remotePath)
+		}
+		return fmt.Sprintf("mkdir -p %q && [ -f %q ] || touch %q", parent, remotePath, remotePath)
 	}
 	return fmt.Sprintf("mkdir -p %q", remotePath)
 }
@@ -195,7 +200,7 @@ func remoteEnsureCmd(remotePath string, isFile bool) string {
 // ensureRemotePath ensures that the remote path exists on the SSH host.
 // It runs the appropriate mkdir/touch command via SSH.
 // Errors are logged as warnings but do not prevent the mount attempt.
-func ensureRemotePath(ssh domainmodel.SSHConfig, remotePath string, isFile bool) {
+func ensureRemotePath(ssh domainmodel.SSHConfig, remotePath string, isFile bool, defaultContent string) {
 	sshUser := ssh.User
 	if sshUser == "" {
 		u, err := user.Current()
@@ -205,7 +210,7 @@ func ensureRemotePath(ssh domainmodel.SSHConfig, remotePath string, isFile bool)
 		sshUser = u.Username
 	}
 
-	remoteCmd := remoteEnsureCmd(remotePath, isFile)
+	remoteCmd := remoteEnsureCmd(remotePath, isFile, defaultContent)
 
 	args := []string{
 		"-o", "ConnectTimeout=5",
