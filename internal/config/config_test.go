@@ -34,8 +34,8 @@ packages:
   - git
   - curl
 ai_cli:
-  tool: claude
-  startup_prompt: "Hello!"
+  - tool: claude
+    startup_prompt: "Hello!"
 `
 	if err := os.WriteFile(cfgPath, []byte(yaml), 0o644); err != nil {
 		t.Fatalf("writing temp config: %v", err)
@@ -117,14 +117,17 @@ ai_cli:
 	}
 
 	// AI CLI
-	if cfg.AICli.Tool != "claude" {
-		t.Errorf("AICli.Tool = %q, want %q", cfg.AICli.Tool, "claude")
+	if len(cfg.AICli) != 1 {
+		t.Fatalf("len(AICli) = %d, want 1", len(cfg.AICli))
 	}
-	if cfg.AICli.StartupPrompt != "Hello!" {
-		t.Errorf("AICli.StartupPrompt = %q, want %q", cfg.AICli.StartupPrompt, "Hello!")
+	if cfg.AICli[0].Tool != "claude" {
+		t.Errorf("AICli[0].Tool = %q, want %q", cfg.AICli[0].Tool, "claude")
 	}
-	if cfg.AICli.StartupPromptFile != "" {
-		t.Errorf("AICli.StartupPromptFile = %q, want empty", cfg.AICli.StartupPromptFile)
+	if cfg.AICli[0].StartupPrompt != "Hello!" {
+		t.Errorf("AICli[0].StartupPrompt = %q, want %q", cfg.AICli[0].StartupPrompt, "Hello!")
+	}
+	if cfg.AICli[0].StartupPromptFile != "" {
+		t.Errorf("AICli[0].StartupPromptFile = %q, want empty", cfg.AICli[0].StartupPromptFile)
 	}
 }
 
@@ -188,10 +191,10 @@ func TestLoadConfig_DefaultsApplied(t *testing.T) {
 
 func TestValidate_MutuallyExclusivePrompt(t *testing.T) {
 	cfg := Config{
-		AICli: AICLIConfig{
+		AICli: []AICLIConfig{{
 			StartupPrompt:     "hello",
 			StartupPromptFile: "/some/file",
-		},
+		}},
 	}
 	cfg.applyDefaults()
 
@@ -199,7 +202,7 @@ func TestValidate_MutuallyExclusivePrompt(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate should return error when both startup_prompt and startup_prompt_file are set")
 	}
-	if got := err.Error(); got != "ai_cli: startup_prompt and startup_prompt_file are mutually exclusive; set only one" {
+	if got := err.Error(); got != "ai_cli[0]: startup_prompt and startup_prompt_file are mutually exclusive; set only one" {
 		t.Errorf("unexpected error message: %q", got)
 	}
 }

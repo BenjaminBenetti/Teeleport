@@ -147,8 +147,10 @@ func run() int {
 	}
 
 	// --- AI CLI ---
-	if cfg.AICli.Tool != "" {
-		_ = aicli.RunAICli(cfg.AICli, config.ExpandPath(cfg.DotfileRepo))
+	for _, cli := range cfg.AICli {
+		if cli.Tool != "" {
+			_ = aicli.RunAICli(cli, config.ExpandPath(cfg.DotfileRepo))
+		}
 	}
 
 	// --- Summary ---

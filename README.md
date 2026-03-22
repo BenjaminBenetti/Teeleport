@@ -61,8 +61,8 @@ mounts:
 
 # Install and auto-run an AI CLI tool
 ai_cli:
-  tool: claude-code
-  startup_prompt: "Review the project and set up your memory."
+  - tool: claude-code
+    startup_prompt: "Review the project and set up your memory."
 ```
 
 ### 3. Point your devcontainer at your dotfile repo
@@ -181,10 +181,10 @@ Provide a startup prompt inline or from a file:
 
 ```yaml
 ai_cli:
-  tool: claude-code
-  startup_prompt: "Review the project and set up your memory."
-  # Or use an external file:
-  # startup_prompt_file: prompts/startup.md
+  - tool: claude-code
+    startup_prompt: "Review the project and set up your memory."
+    # Or use an external file:
+    # startup_prompt_file: prompts/startup.md
 ```
 
 AI CLI errors are **never fatal**. On first run you may need to log in interactively -- once auth is persisted (e.g., via a `.claude` mount), subsequent runs work automatically.
@@ -259,7 +259,9 @@ Path to the dotfile repo root. All copy `source` paths resolve relative to this.
 
 A flat list of package names. Teeleport auto-detects `apt`, `dnf`, or `pacman`.
 
-### `ai_cli`
+### `ai_cli[]`
+
+A list of AI CLI tools to install and launch. Each entry has these fields:
 
 | Field | Required | Description |
 |---|---|---|

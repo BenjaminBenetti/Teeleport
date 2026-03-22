@@ -65,11 +65,14 @@ packages:
   # - jq
 
 # ---------------------------------------------------------------------------
-# AI CLI — launch an AI coding assistant after setup
+# AI CLI — launch AI coding assistants after setup
 # ---------------------------------------------------------------------------
 ai_cli:
-  tool: claude-code                 # AI CLI tool to launch
+  - tool: claude-code                 # AI CLI tool to launch
+    # Provide ONE of the following (not both):
+    startup_prompt: "Review the project"
+    # startup_prompt_file: prompts/startup.md
 
-  # Provide ONE of the following (not both):
-  startup_prompt: "Review the project"
-  # startup_prompt_file: prompts/startup.md
+  # Add more AI CLI tools as needed:
+  # - tool: codex
+  #   startup_prompt: "Review the project"

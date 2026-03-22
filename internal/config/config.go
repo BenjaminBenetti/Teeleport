@@ -17,13 +17,13 @@ import (
 //   - Mounts:      SSH-based filesystem mount configuration.
 //   - Copies:      Files to copy from the dotfile repo into the container.
 //   - Packages:    OS packages to install during setup.
-//   - AICli:       AI CLI tool selection and startup behaviour.
+//   - AICli:       List of AI CLI tools and their startup behaviour.
 type Config struct {
-	DotfileRepo string      `yaml:"dotfile_repo"`
-	Mounts      MountConfig `yaml:"mounts"`
-	Copies      []CopyEntry `yaml:"copies"`
-	Packages    []string    `yaml:"packages"`
-	AICli       AICLIConfig `yaml:"ai_cli"`
+	DotfileRepo string        `yaml:"dotfile_repo"`
+	Mounts      MountConfig   `yaml:"mounts"`
+	Copies      []CopyEntry   `yaml:"copies"`
+	Packages    []string      `yaml:"packages"`
+	AICli       []AICLIConfig `yaml:"ai_cli"`
 }
 
 // MountConfig holds SSH connection details, permission defaults, and the list
@@ -205,8 +205,10 @@ func (c *Config) Validate() error {
 	}
 
 	// startup_prompt and startup_prompt_file are mutually exclusive.
-	if c.AICli.StartupPrompt != "" && c.AICli.StartupPromptFile != "" {
-		return fmt.Errorf("ai_cli: startup_prompt and startup_prompt_file are mutually exclusive; set only one")
+	for i, cli := range c.AICli {
+		if cli.StartupPrompt != "" && cli.StartupPromptFile != "" {
+			return fmt.Errorf("ai_cli[%d]: startup_prompt and startup_prompt_file are mutually exclusive; set only one", i)
+		}
 	}
 
 	return nil
