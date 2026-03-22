@@ -4,6 +4,15 @@ A "global home folder" for devcontainers. Teeleport gives you persistent state, 
 
 Add one line to your dotfile repo's install script and Teeleport handles the rest: mounting remote directories, copying config files, installing packages, and launching your AI coding assistant.
 
+## AI Start
+
+Reading docs is so 2024, This is the easiest way to set up Teeleport. Paste this prompt into any AI coding agent (Claude Code, Codex, Copilot, etc.):
+
+```
+Follow the instructions in https://raw.githubusercontent.com/BenjaminBenetti/Teeleport/main/SETUP_SKILL.md to help me set up Teeleport.
+```
+
+
 ## Quick Start
 
 ### 1. Add Teeleport to your dotfile repo
