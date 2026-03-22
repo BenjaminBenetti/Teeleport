@@ -56,6 +56,38 @@ func TestRemoteBasename(t *testing.T) {
 	}
 }
 
+func TestRemoteEnsureCmd_Directory(t *testing.T) {
+	got := remoteEnsureCmd("/home/user/.claude", false)
+	want := `mkdir -p "/home/user/.claude"`
+	if got != want {
+		t.Errorf("remoteEnsureCmd(dir) = %q, want %q", got, want)
+	}
+}
+
+func TestRemoteEnsureCmd_File(t *testing.T) {
+	got := remoteEnsureCmd("/home/user/.claude.json", true)
+	want := `mkdir -p "/home/user" && touch "/home/user/.claude.json"`
+	if got != want {
+		t.Errorf("remoteEnsureCmd(file) = %q, want %q", got, want)
+	}
+}
+
+func TestRemoteEnsureCmd_NestedFile(t *testing.T) {
+	got := remoteEnsureCmd("/home/user/.config/app/settings.json", true)
+	want := `mkdir -p "/home/user/.config/app" && touch "/home/user/.config/app/settings.json"`
+	if got != want {
+		t.Errorf("remoteEnsureCmd(nested file) = %q, want %q", got, want)
+	}
+}
+
+func TestRemoteEnsureCmd_RootFile(t *testing.T) {
+	got := remoteEnsureCmd("/file.txt", true)
+	want := `mkdir -p "/" && touch "/file.txt"`
+	if got != want {
+		t.Errorf("remoteEnsureCmd(root file) = %q, want %q", got, want)
+	}
+}
+
 func TestStagingDir(t *testing.T) {
 	got := stagingDir("claude-json")
 	if got == "" {

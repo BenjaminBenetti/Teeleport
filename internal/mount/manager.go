@@ -3,6 +3,8 @@ package mount
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"os/user"
 	"path"
 	"path/filepath"
 	"strings"
@@ -74,6 +76,9 @@ func ProcessMounts(cfg config.MountConfig) error {
 			if !exists {
 				staging = stagingDir(entry.Name)
 
+				// Ensure the remote file and its parent directory exist
+				ensureRemotePath(cfg.SSH, entry.Source, true)
+
 				// Check if staging is already mounted
 				if mounted, _ := backend.IsMounted(staging); !mounted {
 					if err := os.MkdirAll(staging, 0o755); err != nil {
@@ -129,6 +134,9 @@ func ProcessMounts(cfg config.MountConfig) error {
 			continue
 		}
 
+		// Ensure the remote directory exists
+		ensureRemotePath(cfg.SSH, entry.Source, false)
+
 		if err := os.MkdirAll(target, 0o755); err != nil {
 			fmt.Printf("[teeleport] mount: %s → %s ... failed creating directory: %v\n", entry.Name, entry.Target, err)
 			failures = append(failures, fmt.Sprintf("%s: %v", entry.Name, err))
@@ -170,4 +178,49 @@ func remoteParent(source string) string {
 // remoteBasename returns the filename component of a remote path.
 func remoteBasename(source string) string {
 	return path.Base(source)
+}
+
+// remoteEnsureCmd returns the shell command to ensure a remote path exists.
+// For directories it returns "mkdir -p <path>".
+// For files it returns "mkdir -p <parent> && touch <path>".
+func remoteEnsureCmd(remotePath string, isFile bool) string {
+	if isFile {
+		parent := path.Dir(remotePath)
+		return fmt.Sprintf("mkdir -p %q && touch %q", parent, remotePath)
+	}
+	return fmt.Sprintf("mkdir -p %q", remotePath)
+}
+
+// ensureRemotePath ensures that the remote path exists on the SSH host.
+// It runs the appropriate mkdir/touch command via SSH.
+// Errors are logged as warnings but do not prevent the mount attempt.
+func ensureRemotePath(ssh config.SSHConfig, remotePath string, isFile bool) {
+	sshUser := ssh.User
+	if sshUser == "" {
+		u, err := user.Current()
+		if err != nil {
+			return
+		}
+		sshUser = u.Username
+	}
+
+	remoteCmd := remoteEnsureCmd(remotePath, isFile)
+
+	args := []string{
+		"-o", "ConnectTimeout=5",
+		"-o", "BatchMode=yes",
+		"-o", "StrictHostKeyChecking=no",
+		"-p", fmt.Sprintf("%d", ssh.Port),
+	}
+
+	if ssh.IdentityFile != "" {
+		args = append(args, "-i", config.ExpandPath(ssh.IdentityFile))
+	}
+
+	args = append(args, fmt.Sprintf("%s@%s", sshUser, ssh.Host), remoteCmd)
+
+	cmd := exec.Command("ssh", args...)
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("[teeleport] mount: warning: failed to ensure remote path %s: %v\n", remotePath, err)
+	}
 }
