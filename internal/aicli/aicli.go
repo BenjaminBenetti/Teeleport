@@ -3,6 +3,7 @@ package aicli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
 	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
@@ -92,4 +93,23 @@ func RunAICli(cfg domainmodel.AICLIConfig, dotfileRepo string) error {
 	}
 
 	return nil
+}
+
+// sudoPrefix returns "sudo" if the sudo binary is available, or an empty
+// slice if it is not. Use this to optionally elevate npm installs in
+// containers where the current user cannot write to global node_modules.
+func sudoPrefix() []string {
+	if _, err := exec.LookPath("sudo"); err == nil {
+		return []string{"sudo"}
+	}
+	return nil
+}
+
+// buildCommand creates an exec.Cmd, optionally prefixed with sudo if available.
+// Example: buildCommand("npm", "install", "-g", "pkg") runs "sudo npm install -g pkg"
+// when sudo exists, or "npm install -g pkg" when it doesn't.
+func buildCommand(args ...string) *exec.Cmd {
+	prefix := sudoPrefix()
+	full := append(prefix, args...)
+	return exec.Command(full[0], full[1:]...)
 }

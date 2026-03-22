@@ -14,7 +14,7 @@ type Codex struct{}
 // forwarded to the current process. It returns an error if the npm install
 // command fails.
 func (c *Codex) Install() error {
-	cmd := exec.Command("npm", "install", "-g", "@openai/codex")
+	cmd := buildCommand("npm", "install", "-g", "@openai/codex")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
