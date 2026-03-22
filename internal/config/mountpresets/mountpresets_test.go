@@ -31,6 +31,82 @@ func TestGet_Claude(t *testing.T) {
 	}
 }
 
+func TestGet_Codex(t *testing.T) {
+	entries, err := Get("codex")
+	if err != nil {
+		t.Fatalf("Get(\"codex\") returned error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("Get(\"codex\") returned %d entries, want 1", len(entries))
+	}
+	if entries[0].Name != "codex" {
+		t.Errorf("entries[0].Name = %q, want \"codex\"", entries[0].Name)
+	}
+	if entries[0].Source != "/var/opt/teeleport/.codex" {
+		t.Errorf("entries[0].Source = %q, want \"/var/opt/teeleport/.codex\"", entries[0].Source)
+	}
+	if entries[0].Target != "~/.codex" {
+		t.Errorf("entries[0].Target = %q, want \"~/.codex\"", entries[0].Target)
+	}
+}
+
+func TestGet_Gemini(t *testing.T) {
+	entries, err := Get("gemini")
+	if err != nil {
+		t.Fatalf("Get(\"gemini\") returned error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("Get(\"gemini\") returned %d entries, want 1", len(entries))
+	}
+	if entries[0].Name != "gemini" {
+		t.Errorf("entries[0].Name = %q, want \"gemini\"", entries[0].Name)
+	}
+	if entries[0].Source != "/var/opt/teeleport/.gemini" {
+		t.Errorf("entries[0].Source = %q, want \"/var/opt/teeleport/.gemini\"", entries[0].Source)
+	}
+	if entries[0].Target != "~/.gemini" {
+		t.Errorf("entries[0].Target = %q, want \"~/.gemini\"", entries[0].Target)
+	}
+}
+
+func TestGet_Copilot(t *testing.T) {
+	entries, err := Get("copilot")
+	if err != nil {
+		t.Fatalf("Get(\"copilot\") returned error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("Get(\"copilot\") returned %d entries, want 1", len(entries))
+	}
+	if entries[0].Name != "copilot" {
+		t.Errorf("entries[0].Name = %q, want \"copilot\"", entries[0].Name)
+	}
+	if entries[0].Source != "/var/opt/teeleport/.copilot" {
+		t.Errorf("entries[0].Source = %q, want \"/var/opt/teeleport/.copilot\"", entries[0].Source)
+	}
+	if entries[0].Target != "~/.copilot" {
+		t.Errorf("entries[0].Target = %q, want \"~/.copilot\"", entries[0].Target)
+	}
+}
+
+func TestGet_GH(t *testing.T) {
+	entries, err := Get("gh")
+	if err != nil {
+		t.Fatalf("Get(\"gh\") returned error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("Get(\"gh\") returned %d entries, want 1", len(entries))
+	}
+	if entries[0].Name != "gh" {
+		t.Errorf("entries[0].Name = %q, want \"gh\"", entries[0].Name)
+	}
+	if entries[0].Source != "/var/opt/teeleport/.config/gh" {
+		t.Errorf("entries[0].Source = %q, want \"/var/opt/teeleport/.config/gh\"", entries[0].Source)
+	}
+	if entries[0].Target != "~/.config/gh" {
+		t.Errorf("entries[0].Target = %q, want \"~/.config/gh\"", entries[0].Target)
+	}
+}
+
 func TestGet_Unknown(t *testing.T) {
 	_, err := Get("nonexistent")
 	if err == nil {

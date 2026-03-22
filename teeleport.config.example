@@ -26,6 +26,14 @@ mounts:
     # Use a preset to quickly add common mounts:
     # - name: claude-preset
     #   preset: claude
+    # - name: codex-preset
+    #   preset: codex
+    # - name: gemini-preset
+    #   preset: gemini
+    # - name: copilot-preset
+    #   preset: copilot
+    # - name: gh-preset
+    #   preset: gh
 
     - name: claude                  # human-readable label
       source: /home/devuser/.claude # path on the remote host

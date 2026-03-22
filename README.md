@@ -169,6 +169,10 @@ Available presets:
 | Preset | Description |
 |---|---|
 | `claude` | Mounts `~/.claude` directory and `~/.claude.json` file from `/var/opt/teeleport/` |
+| `codex` | Mounts `~/.codex` directory from `/var/opt/teeleport/` |
+| `gemini` | Mounts `~/.gemini` directory from `/var/opt/teeleport/` |
+| `copilot` | Mounts `~/.copilot` directory from `/var/opt/teeleport/` |
+| `gh` | Mounts `~/.config/gh` directory from `/var/opt/teeleport/` for GitHub CLI auth and config |
 
 **Prerequisites for mounts:**
 

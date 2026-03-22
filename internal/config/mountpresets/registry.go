@@ -10,7 +10,11 @@ import (
 )
 
 var registry = map[string][]domainmodel.MountEntry{
-	"claude": Claude,
+	"claude":  Claude,
+	"codex":   Codex,
+	"gemini":  Gemini,
+	"copilot": Copilot,
+	"gh":      GH,
 }
 
 // Get returns the mount entries for the named preset.
