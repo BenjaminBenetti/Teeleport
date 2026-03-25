@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
@@ -115,33 +116,39 @@ func buildCommand(args ...string) *exec.Cmd {
 	return exec.Command(full[0], full[1:]...)
 }
 
-// npmPrefixWritable reports whether the current user can write to npm's
-// global prefix directory. When the user has nvm, the prefix lives under
-// $HOME and is already writable — using sudo in that case would bypass nvm
-// and can prevent optional platform-specific dependencies from installing.
-func npmPrefixWritable() bool {
-	cmd := exec.Command("npm", "prefix", "-g")
-	out, err := cmd.Output()
-	if err != nil {
-		return false
+// findNvmSh returns the absolute path to nvm.sh if nvm is installed, or an
+// empty string if nvm is not available. It checks NVM_DIR first (set by
+// nvm and devcontainer features, e.g. /usr/local/share/nvm), then falls back
+// to the conventional $HOME/.nvm location.
+func findNvmSh() string {
+	if dir := os.Getenv("NVM_DIR"); dir != "" {
+		p := filepath.Join(dir, "nvm.sh")
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
 	}
-	prefix := strings.TrimSpace(string(out))
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return false
+	if home, err := os.UserHomeDir(); err == nil {
+		p := filepath.Join(home, ".nvm", "nvm.sh")
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
 	}
-	return strings.HasPrefix(prefix, home)
+	return ""
 }
 
-// npmInstallGlobal runs "npm install -g <packages...>", using sudo only when
-// the npm global prefix is not writable by the current user. This avoids
-// bypassing nvm (and its correct platform detection for optional deps) when
-// sudo is not actually needed.
+// npmInstallGlobal returns an exec.Cmd that runs "npm install -g <packages>".
+// When nvm is available it sources nvm.sh first so the correct node/npm
+// version is used (the system node may be too old for platform-specific
+// optional dependencies). Without nvm it falls back to the system npm with
+// sudo if available.
 func npmInstallGlobal(packages ...string) *exec.Cmd {
-	args := append([]string{"install", "-g"}, packages...)
-	if npmPrefixWritable() {
-		return exec.Command("npm", args...)
+	// All callers pass hardcoded package literals (e.g. "@openai/codex")
+	// which are safe to interpolate into a shell command.
+	pkgs := strings.Join(packages, " ")
+	if nvmSh := findNvmSh(); nvmSh != "" {
+		script := "source " + nvmSh + " && npm install -g " + pkgs
+		return exec.Command("bash", "-c", script)
 	}
-	full := append([]string{"npm"}, args...)
-	return buildCommand(full...)
+	args := append([]string{"npm", "install", "-g"}, packages...)
+	return buildCommand(args...)
 }
