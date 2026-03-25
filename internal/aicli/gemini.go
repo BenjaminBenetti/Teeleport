@@ -14,7 +14,7 @@ type GeminiCli struct{}
 // are forwarded to the current process. It returns an error if the npm install
 // command fails.
 func (g *GeminiCli) Install() error {
-	cmd := buildCommand("npm", "install", "-g", "@google/gemini-cli")
+	cmd := npmInstallGlobal("@google/gemini-cli")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

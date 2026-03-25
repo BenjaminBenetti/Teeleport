@@ -14,7 +14,7 @@ type Copilot struct{}
 // process are forwarded to the current process. It returns an error if the
 // installation fails.
 func (c *Copilot) Install() error {
-	cmd := buildCommand("npm", "install", "-g", "@github/copilot")
+	cmd := npmInstallGlobal("@github/copilot")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

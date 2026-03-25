@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
 	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
@@ -112,4 +113,35 @@ func buildCommand(args ...string) *exec.Cmd {
 	prefix := sudoPrefix()
 	full := append(prefix, args...)
 	return exec.Command(full[0], full[1:]...)
+}
+
+// npmPrefixWritable reports whether the current user can write to npm's
+// global prefix directory. When the user has nvm, the prefix lives under
+// $HOME and is already writable — using sudo in that case would bypass nvm
+// and can prevent optional platform-specific dependencies from installing.
+func npmPrefixWritable() bool {
+	cmd := exec.Command("npm", "prefix", "-g")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	prefix := strings.TrimSpace(string(out))
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(prefix, home)
+}
+
+// npmInstallGlobal runs "npm install -g <packages...>", using sudo only when
+// the npm global prefix is not writable by the current user. This avoids
+// bypassing nvm (and its correct platform detection for optional deps) when
+// sudo is not actually needed.
+func npmInstallGlobal(packages ...string) *exec.Cmd {
+	args := append([]string{"install", "-g"}, packages...)
+	if npmPrefixWritable() {
+		return exec.Command("npm", args...)
+	}
+	full := append([]string{"npm"}, args...)
+	return buildCommand(full...)
 }
