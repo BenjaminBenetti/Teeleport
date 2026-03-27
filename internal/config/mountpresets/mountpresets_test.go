@@ -107,6 +107,28 @@ func TestGet_GH(t *testing.T) {
 	}
 }
 
+func TestGet_GitConfig(t *testing.T) {
+	entries, err := Get("gitconfig")
+	if err != nil {
+		t.Fatalf("Get(\"gitconfig\") returned error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("Get(\"gitconfig\") returned %d entries, want 1", len(entries))
+	}
+	if entries[0].Name != "gitconfig" {
+		t.Errorf("entries[0].Name = %q, want \"gitconfig\"", entries[0].Name)
+	}
+	if entries[0].Source != "/var/opt/teeleport/.gitconfig" {
+		t.Errorf("entries[0].Source = %q, want \"/var/opt/teeleport/.gitconfig\"", entries[0].Source)
+	}
+	if entries[0].Target != "~/.gitconfig" {
+		t.Errorf("entries[0].Target = %q, want \"~/.gitconfig\"", entries[0].Target)
+	}
+	if entries[0].Type != "file" {
+		t.Errorf("entries[0].Type = %q, want \"file\"", entries[0].Type)
+	}
+}
+
 func TestGet_Unknown(t *testing.T) {
 	_, err := Get("nonexistent")
 	if err == nil {
