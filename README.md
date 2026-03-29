@@ -182,6 +182,7 @@ Available presets:
 | `gemini` | Mounts `~/.gemini` directory from `/var/opt/teeleport/` |
 | `copilot` | Mounts `~/.copilot` directory from `/var/opt/teeleport/` |
 | `gh` | Mounts `~/.config/gh` directory from `/var/opt/teeleport/` for GitHub CLI auth and config |
+| `ssh` | Mounts `~/.ssh/known_hosts` file from `/var/opt/teeleport/` so accepted SSH host keys persist across containers |
 
 **Prerequisites for mounts:**
 

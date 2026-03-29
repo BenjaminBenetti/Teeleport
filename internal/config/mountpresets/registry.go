@@ -16,6 +16,7 @@ var registry = map[string][]domainmodel.MountEntry{
 	"copilot":   Copilot,
 	"gh":        GH,
 	"gitconfig": GitConfig,
+	"ssh":       SSH,
 }
 
 // Get returns the mount entries for the named preset.
