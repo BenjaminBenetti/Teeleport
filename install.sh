@@ -79,6 +79,10 @@ log "Added ${INSTALL_DIR} to PATH"
 log "Starting teeleport..."
 teeleport
 
+# Write the remount stamp so the shell hook knows this boot is already handled.
+mkdir -p "${HOME}/.teeleport"
+stat -c %Z /proc/1 2>/dev/null > "${HOME}/.teeleport/.remount-stamp" || true
+
 # --- Install shell hook to re-mount after devcontainer restart ---
 # Resolve the config file path now (install-time CWD is the dotfiles repo)
 # so the hook can find it regardless of the terminal's CWD at runtime.
