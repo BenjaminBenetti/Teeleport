@@ -105,7 +105,8 @@ HOOK_MARKER="teeleport-remount-hook"
 # Runtime variables use \$ to defer expansion.
 read -r -d '' HOOK_SNIPPET << HOOKEOF || true
 # teeleport-remount-hook — re-establish SSHFS mounts after container restart
-if [ -x "\${HOME}/.local/bin/teeleport" ]; then
+# Only run in interactive shells with SSH agent forwarding available.
+if [ -x "\${HOME}/.local/bin/teeleport" ] && [[ \$- == *i* ]] && [ -n "\${SSH_AUTH_SOCK:-}" ]; then
     _tp_stamp="\${HOME}/.teeleport/.remount-stamp"
     _tp_boot="\$(stat -c %Z /proc/1 2>/dev/null || echo 0)"
     _tp_last="\$(cat "\$_tp_stamp" 2>/dev/null || echo -1)"
