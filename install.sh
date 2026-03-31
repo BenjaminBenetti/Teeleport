@@ -78,3 +78,57 @@ log "Added ${INSTALL_DIR} to PATH"
 # --- Run teeleport ---
 log "Starting teeleport..."
 teeleport
+
+# --- Install shell hook to re-mount after devcontainer restart ---
+# Resolve the config file path now (install-time CWD is the dotfiles repo)
+# so the hook can find it regardless of the terminal's CWD at runtime.
+TEELEPORT_CONFIG_PATH="$(teeleport -config-path 2>/dev/null || true)"
+if [ -z "$TEELEPORT_CONFIG_PATH" ]; then
+    # Fallback: probe the same candidates FindConfig uses
+    for _candidate in \
+        "$(pwd)/teeleport.config" \
+        "$(pwd)/teeleport.config.yaml" \
+        "${HOME}/dotfiles/teeleport.config" \
+        "${HOME}/dotfiles/teeleport.config.yaml" \
+        "${HOME}/.dotfiles/teeleport.config" \
+        "${HOME}/.dotfiles/teeleport.config.yaml"; do
+        if [ -f "$_candidate" ]; then
+            TEELEPORT_CONFIG_PATH="$_candidate"
+            break
+        fi
+    done
+    unset _candidate
+fi
+
+HOOK_MARKER="teeleport-remount-hook"
+# Note: unquoted HOOKEOF so TEELEPORT_CONFIG_PATH is expanded at install time.
+# Runtime variables use \$ to defer expansion.
+read -r -d '' HOOK_SNIPPET << HOOKEOF || true
+# teeleport-remount-hook — re-establish SSHFS mounts after container restart
+if [ -x "\${HOME}/.local/bin/teeleport" ]; then
+    _tp_stamp="\${HOME}/.teeleport/.remount-stamp"
+    _tp_boot="\$(stat -c %Z /proc/1 2>/dev/null || echo 0)"
+    _tp_last="\$(cat "\$_tp_stamp" 2>/dev/null || echo -1)"
+    if [ "\$_tp_boot" != "\$_tp_last" ]; then
+        mkdir -p "\${HOME}/.teeleport"
+        echo "\$_tp_boot" > "\$_tp_stamp"
+        TEELEPORT_CONFIG="${TEELEPORT_CONFIG_PATH}" "\${HOME}/.local/bin/teeleport" >> "\${HOME}/.teeleport/remount.log" 2>&1 &
+        disown
+    fi
+    unset _tp_stamp _tp_boot _tp_last
+fi
+HOOKEOF
+
+install_hook() {
+    local rc_file="$1"
+    if [ -f "$rc_file" ] && grep -q "$HOOK_MARKER" "$rc_file"; then
+        log "Shell hook already present in ${rc_file}, skipping."
+    else
+        echo "" >> "$rc_file"
+        echo "$HOOK_SNIPPET" >> "$rc_file"
+        log "Installed remount hook in ${rc_file}"
+    fi
+}
+
+install_hook "${HOME}/.bashrc"
+[ -f "${HOME}/.zshrc" ] && install_hook "${HOME}/.zshrc"
