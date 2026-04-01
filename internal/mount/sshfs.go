@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/user"
 	"strings"
+	"time"
 
 	"github.com/BenjaminBenetti/Teeleport/internal/config"
 	"github.com/BenjaminBenetti/Teeleport/internal/domainmodel"
@@ -88,6 +89,10 @@ func (b *SSHFSBackend) Mount(source, target string) error {
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "reconnect",
 		"-o", "ServerAliveInterval=15",
+		"-o", "ServerAliveCountMax=3",
+		"-o", "ConnectTimeout=10",
+		"-o", "ConnectionAttempts=1",
+		"-o", "TCPKeepAlive=yes",
 	)
 
 	cmd := exec.Command("sshfs", args...)
@@ -125,14 +130,17 @@ func mountedFsType(target string) string {
 	return ""
 }
 
-// IsMounted reports whether target is currently listed as a mount point in
-// /proc/mounts.
+// IsMounted reports whether target is currently a healthy mount point.
 //
-// target is the absolute path of the local directory to check.
+// It first checks /proc/mounts to see if target is listed. If it is, a timed
+// stat is performed on the mount point to verify the FUSE connection is still
+// alive. A mount that appears in /proc/mounts but does not respond to stat
+// within a short deadline is considered stale: it is lazily unmounted so that
+// the caller can remount fresh.
 //
-// It returns true if target appears as the second field of any line in
-// /proc/mounts, false if it does not, and a non-nil error if /proc/mounts
-// cannot be read or scanned.
+// It returns true only if the mount is both listed and responsive, false if
+// the target is not mounted or was stale (and has been cleaned up), and a
+// non-nil error if /proc/mounts cannot be read.
 func (b *SSHFSBackend) IsMounted(target string) (bool, error) {
 	f, err := os.Open("/proc/mounts")
 	if err != nil {
@@ -140,15 +148,56 @@ func (b *SSHFSBackend) IsMounted(target string) (bool, error) {
 	}
 	defer f.Close()
 
+	listed := false
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) >= 2 && fields[1] == target {
-			return true, nil
+			listed = true
+			break
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return false, fmt.Errorf("scanning /proc/mounts: %w", err)
 	}
-	return false, nil
+	if !listed {
+		return false, nil
+	}
+
+	// The mount is listed — verify it is actually responsive.
+	if !isResponsive(target) {
+		fmt.Printf("[teeleport] mount: stale mount detected at %s, cleaning up\n", target)
+		lazyUnmount(target)
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// isResponsive checks whether a mount point responds to a stat call within a
+// short deadline. A hung or dead FUSE mount will block stat indefinitely; the
+// goroutine running the stat is abandoned on timeout (the kernel will clean it
+// up when the mount is lazily unmounted).
+func isResponsive(target string) bool {
+	done := make(chan bool, 1)
+	go func() {
+		_, err := os.Stat(target)
+		done <- err == nil
+	}()
+
+	select {
+	case ok := <-done:
+		return ok
+	case <-time.After(3 * time.Second):
+		return false
+	}
+}
+
+// lazyUnmount detaches a mount point without waiting for busy file handles to
+// close. It tries fusermount -uz first (FUSE-aware), falling back to
+// umount -l (kernel-level lazy unmount).
+func lazyUnmount(target string) {
+	if err := exec.Command("fusermount", "-uz", target).Run(); err != nil {
+		exec.Command("umount", "-l", target).Run()
+	}
 }
