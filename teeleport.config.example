@@ -16,6 +16,10 @@ mounts:
     port: 22                        # default: 22
     identity_file: ~/.ssh/id_ed25519
 
+  # Rsync daemon settings (only used when backend: rsync entries exist).
+  # rsync:
+  #   interval: 30                    # seconds between sync cycles (default: 30)
+
   # Default ownership for mounted files.
   permissions:
     uid: 1000                       # default: 1000
@@ -38,7 +42,7 @@ mounts:
     - name: claude                  # human-readable label
       source: /home/devuser/.claude # path on the remote host
       target: ~/.claude             # path inside the container
-      backend: sshfs                # mount backend (currently only sshfs)
+      backend: sshfs                # mount backend: sshfs (FUSE mount) or rsync (periodic sync)
 
     # Add more entries as needed:
     # - name: ssh-keys
@@ -52,6 +56,21 @@ mounts:
     #   target: ~/.claude.json
     #   type: file
     #   backend: sshfs
+
+    # Rsync backend — syncs files bidirectionally at a set interval.
+    # Uses last-write-wins: the newest version of each file always takes
+    # precedence. A background daemon keeps files in sync continuously.
+    # Does NOT require FUSE (/dev/fuse).
+    # - name: project
+    #   source: /home/devuser/projects
+    #   target: ~/projects
+    #   backend: rsync
+    #
+    # - name: config-file
+    #   source: /home/devuser/.myconfig
+    #   target: ~/.myconfig
+    #   type: file
+    #   backend: rsync
 
 # ---------------------------------------------------------------------------
 # Copies — files to copy from the dotfile repo into the container

@@ -84,9 +84,10 @@ When Teeleport runs, it executes these steps in order:
 
 ```
 1. Install packages      apt/dnf/pacman (auto-detected)
-2. Mount remote dirs     SSHFS mounts for live, persistent state
-3. Copy config files     From your dotfile repo to the right locations
-4. Launch AI CLI         Install and run with an optional startup prompt
+2. Mount remote dirs     SSHFS mounts or rsync initial sync
+3. Start rsync daemon    Background bidirectional sync (if rsync entries exist)
+4. Copy config files     From your dotfile repo to the right locations
+5. Launch AI CLI         Install and run with an optional startup prompt
 ```
 
 All operations are **idempotent** -- safe to run on every container creation.
@@ -184,7 +185,7 @@ Available presets:
 | `gh` | Mounts `~/.config/gh` directory from `/var/opt/teeleport/` for GitHub CLI auth and config |
 | `known_hosts` | Mounts `~/.ssh/known_hosts` file from `/var/opt/teeleport/` so accepted SSH host keys persist across containers |
 
-**Prerequisites for mounts:**
+**Prerequisites for SSHFS mounts:**
 
 Your `devcontainer.json` must grant FUSE access. Add one of:
 
@@ -197,6 +198,55 @@ Your `devcontainer.json` must grant FUSE access. Add one of:
 ```
 
 You also need SSH access to the remote host. Devcontainer [SSH agent forwarding](https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials) is the easiest way to set this up.
+
+### Rsync Backend
+
+An alternative to SSHFS that **does not require FUSE**. Instead of a live filesystem mount, Teeleport runs a background daemon that periodically synchronises files between the container and the remote host using `rsync` over SSH.
+
+```yaml
+mounts:
+  ssh:
+    host: my-server.example.com
+    user: devuser
+  rsync:
+    interval: 30          # seconds between sync cycles (default: 30)
+  entries:
+    - name: projects
+      source: /home/devuser/projects
+      target: ~/projects
+      backend: rsync
+
+    - name: myconfig
+      source: /home/devuser/.myconfig
+      target: ~/.myconfig
+      type: file
+      backend: rsync
+```
+
+**How it works:**
+
+1. On `teeleport` startup, an initial sync pulls the remote state into the container.
+2. A background daemon is launched that runs bidirectional sync cycles at the configured interval.
+3. Each cycle pushes local changes to the remote, then pulls remote changes to the local side.
+4. **Last-write-wins:** the newest version of each file always takes precedence (`rsync --update`).
+5. **Deletions propagate:** files deleted on one side are removed from the other (`rsync --delete`). Since push runs before pull, local deletions propagate to the remote; files deleted only on the remote will be removed locally on the next pull.
+6. The daemon is resilient to transient errors -- failures are logged and retried on the next cycle.
+
+**Daemon lifecycle:**
+
+- Started automatically after the initial sync completes.
+- A shell hook checks that the daemon is alive on every interactive shell open and restarts it if it has crashed.
+- The daemon writes its PID to `~/.teeleport/rsync.pid` and logs to `~/.teeleport/rsync.log`.
+- You can also run the daemon manually: `teeleport rsync --config <path>`.
+
+**When to use rsync vs SSHFS:**
+
+| | SSHFS | Rsync |
+|---|---|---|
+| Sync model | Live FUSE mount (instant) | Periodic copy (interval-based) |
+| Requires FUSE | Yes | No |
+| Works offline | No (mount hangs) | Yes (local copy persists) |
+| Best for | Config dirs, auth state | Larger working trees, no-FUSE environments |
 
 ### AI CLI Integration
 
@@ -268,6 +318,14 @@ Path to the dotfile repo root. All copy `source` paths resolve relative to this.
 | `uid` | No | `1000` | UID to map mounted files to |
 | `gid` | No | `1000` | GID to map mounted files to |
 
+### `mounts.rsync`
+
+Settings for the rsync background daemon. Only used when `backend: rsync` entries exist.
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `interval` | No | `30` | Seconds between bidirectional sync cycles |
+
 ### `mounts.entries[]`
 
 | Field | Required | Default | Description |
@@ -275,8 +333,8 @@ Path to the dotfile repo root. All copy `source` paths resolve relative to this.
 | `name` | Yes | -- | Human-readable label for logs |
 | `source` | Yes* | -- | Absolute path on the remote host |
 | `target` | Yes* | -- | Local mount point (supports `~`) |
-| `type` | No | `directory` | `directory` or `file`. File mounts symlink a single file from a staged parent directory mount. |
-| `backend` | Yes* | -- | Mount backend: `sshfs` |
+| `type` | No | `directory` | `directory` or `file`. For `sshfs`, file mounts symlink a single file from a staged parent directory mount. For `rsync`, files are synced directly. |
+| `backend` | No | `sshfs` | Mount backend: `sshfs` (FUSE mount) or `rsync` (periodic bidirectional sync) |
 | `preset` | No | -- | Use a predefined mount preset instead of `source`/`target`/`backend` (e.g. `claude`) |
 | `force_mount` | No | `false` | If true, unmounts conflicting mounts (wrong filesystem type) before remounting with the configured backend. |
 | `file.default_content` | No | -- | Content to initialize the file with on the remote if it doesn't exist (only for `type: file`) |
@@ -311,6 +369,13 @@ teeleport [flags]
 
   --config <path>    Path to config file (overrides auto-discovery)
   --version          Print version and exit
+
+teeleport rsync [flags]
+
+  --config <path>    Path to config file (overrides auto-discovery)
+
+  Runs the rsync sync daemon in the foreground. Normally started
+  automatically by the main teeleport command and the shell hook.
 ```
 
 Teeleport auto-discovers the config file in this order:

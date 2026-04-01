@@ -27,6 +27,10 @@ mounts:
     uid: 1000
     gid: 1000
 
+  # Rsync daemon settings (only used when backend: rsync entries exist)
+  rsync:
+    interval: 30  # seconds between sync cycles (default: 30)
+
   entries:
     - name: claude
       source: /home/devuser/.claude
@@ -37,6 +41,12 @@ mounts:
       source: /home/devuser/.ssh
       target: ~/.ssh
       backend: sshfs
+
+    # Rsync backend — bidirectional periodic sync, no FUSE required
+    - name: projects
+      source: /home/devuser/projects
+      target: ~/projects
+      backend: rsync
 
 # Copy operations — local files from the dotfile repo copied to target locations
 copies:
@@ -112,6 +122,14 @@ UID/GID mapping applied to all mounted filesystems.
 | `uid` | `int` | No | `1000` | Local UID to map files to |
 | `gid` | `int` | No | `1000` | Local GID to map files to |
 
+#### `mounts.rsync`
+
+Settings for the rsync background sync daemon. Only relevant when `backend: rsync` entries exist.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `interval` | `int` | No | `30` | Seconds between bidirectional sync cycles |
+
 #### Mount Entry Fields
 
 Each entry under `mounts.entries` defines a remote directory to mount locally. All entries share the same SSH connection.
@@ -121,7 +139,7 @@ Each entry under `mounts.entries` defines a remote directory to mount locally. A
 | `name` | `string` | Yes | — | Human-readable identifier for logging and error messages |
 | `source` | `string` (path) | Yes | — | Absolute path on the remote host |
 | `target` | `string` (path) | Yes | — | Local path to mount to (supports `~`) |
-| `backend` | `string` | Yes | — | Mount backend to use. Currently supported: `sshfs` |
+| `backend` | `string` | No | `sshfs` | Mount backend to use. Supported: `sshfs` (FUSE mount) or `rsync` (periodic bidirectional sync daemon) |
 
 ## Copy Entry Fields
 
@@ -192,10 +210,11 @@ This is intentional — on the very first run, the user likely needs to log in i
 
 ## Execution Order
 
-1. **Packages are installed first** — Ensures dependencies (like `sshfs`) are available before mount operations
-2. **Mounts are processed second** — Remote filesystems are mounted before any copies, in case a copy target is within a mounted path
-3. **Copies are processed third** — Entries are processed top-to-bottom as listed in the config
-4. **AI CLI runs last** — Install and invoke after everything else is set up (mounts in place, config files copied). Failures are non-fatal
+1. **Packages are installed first** — Ensures dependencies (like `sshfs`, `rsync`) are available before mount operations
+2. **Mounts are processed second** — Remote filesystems are mounted (SSHFS) or initially synced (rsync) before any copies, in case a copy target is within a mounted path
+3. **Rsync daemon is started third** — If any rsync-backend entries exist, a background daemon is launched to run periodic bidirectional syncs
+4. **Copies are processed fourth** — Entries are processed top-to-bottom as listed in the config
+5. **AI CLI runs last** — Install and invoke after everything else is set up (mounts in place, config files copied). Failures are non-fatal
 
 ## Path Resolution
 

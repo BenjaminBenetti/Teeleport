@@ -3,11 +3,19 @@
 // mount, copy, aicli, and mountpresets packages.
 package domainmodel
 
+// RsyncConfig holds settings for the rsync sync daemon.
+type RsyncConfig struct {
+	// Interval is the number of seconds between bidirectional sync cycles.
+	// Defaults to 30.
+	Interval int `yaml:"interval"`
+}
+
 // MountConfig holds SSH connection details, permission defaults, and the list
 // of directories to mount via SSHFS (or another backend).
 type MountConfig struct {
 	SSH         SSHConfig    `yaml:"ssh"`
 	Permissions PermConfig   `yaml:"permissions"`
+	Rsync       RsyncConfig  `yaml:"rsync"`
 	Entries     []MountEntry `yaml:"entries"`
 }
 

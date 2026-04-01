@@ -18,9 +18,10 @@ Teeleport is a Go CLI tool that creates a "global home folder" experience across
 Mount remote directories into the local filesystem for live, bidirectional state.
 
 - **Primary use case:** Directories that need to stay in sync across workspaces in real-time (e.g., `~/.claude` to persist login sessions)
-- **Backend:** SSHFS (requires FUSE access in the container)
-- **Prerequisite:** The devcontainer must be configured with FUSE access (`"privileged": true` or `"runArgs": ["--device=/dev/fuse"]`)
-- **Future consideration:** The backend interface should be abstract enough to support additional mount backends (NFS, etc.) later
+- **Backends:**
+  - **SSHFS** — live FUSE mount. Requires `/dev/fuse` in the container (`"privileged": true` or `"runArgs": ["--device=/dev/fuse"]`)
+  - **Rsync** — periodic bidirectional sync via a background daemon. No FUSE requirement. Uses `rsync --update --delete` for last-write-wins semantics with deletion propagation. Configurable sync interval (default 30 s). Best for larger trees or environments where FUSE is unavailable.
+- **Backend interface:** Strategy pattern allows adding new backends without changing core logic
 
 ### Copy Operations
 
@@ -63,7 +64,7 @@ After installation, Teeleport can optionally run the CLI with a startup prompt �
 ## Key Concerns
 
 ### FUSE Requirement
-SSHFS requires FUSE, which requires explicit container permissions. This is the primary friction point for mount operations and must be clearly documented. Copy operations have no such requirement.
+SSHFS requires FUSE, which requires explicit container permissions. This is the primary friction point for mount operations and must be clearly documented. Copy operations and rsync-backend mounts have no FUSE requirement. Teeleport automatically skips the FUSE preflight check when only rsync entries are configured.
 
 ### SSH Key Bootstrap
 For SSH mounts, the container needs SSH access to the remote host. Devcontainer SSH agent forwarding helps here, but the bootstrap order matters — Teeleport should verify SSH connectivity before attempting mounts.

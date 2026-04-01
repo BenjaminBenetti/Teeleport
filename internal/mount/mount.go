@@ -47,6 +47,8 @@ func NewBackend(backendName string, ssh domainmodel.SSHConfig, perms domainmodel
 	switch backendName {
 	case "sshfs":
 		return &SSHFSBackend{SSH: ssh, Perms: perms}, nil
+	case "rsync":
+		return &RsyncBackend{SSH: ssh, Perms: perms}, nil
 	default:
 		return nil, fmt.Errorf("unknown mount backend: %q", backendName)
 	}
