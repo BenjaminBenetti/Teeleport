@@ -109,6 +109,7 @@ HOOK_MARKER="teeleport-remount-hook"
 # Runtime variables use \$ to defer expansion.
 read -r -d '' HOOK_SNIPPET << HOOKEOF || true
 # teeleport-remount-hook — re-establish SSHFS mounts after container restart
+# and ensure the rsync daemon is alive when configured.
 # Only run in interactive shells with SSH agent forwarding available.
 if [ -x "\${HOME}/.local/bin/teeleport" ] && [[ \$- == *i* ]] && [ -n "\${SSH_AUTH_SOCK:-}" ]; then
     _tp_stamp="\${HOME}/.teeleport/.remount-stamp"
@@ -121,6 +122,19 @@ if [ -x "\${HOME}/.local/bin/teeleport" ] && [[ \$- == *i* ]] && [ -n "\${SSH_AU
         disown
     fi
     unset _tp_stamp _tp_boot _tp_last
+
+    # Rsync daemon health check — restart if the PID file exists but the
+    # process is gone (daemon crashed or was killed between shell opens).
+    _tp_rsync_pid="\${HOME}/.teeleport/rsync.pid"
+    if [ -f "\$_tp_rsync_pid" ]; then
+        _tp_pid=\$(cat "\$_tp_rsync_pid" 2>/dev/null)
+        if [ -n "\$_tp_pid" ] && ! kill -0 "\$_tp_pid" 2>/dev/null; then
+            TEELEPORT_CONFIG="${TEELEPORT_CONFIG_PATH}" "\${HOME}/.local/bin/teeleport" rsync --config "${TEELEPORT_CONFIG_PATH}" >> "\${HOME}/.teeleport/rsync.log" 2>&1 &
+            disown
+        fi
+        unset _tp_pid
+    fi
+    unset _tp_rsync_pid
 fi
 HOOKEOF
 

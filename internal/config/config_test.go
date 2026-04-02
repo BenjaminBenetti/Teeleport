@@ -436,9 +436,9 @@ func TestPresetExpansion_BackendOverride(t *testing.T) {
     host: example.com
     user: testuser
   entries:
-    - name: claude-nfs
+    - name: claude-rsync
       preset: claude
-      backend: nfs
+      backend: rsync
 `
 	if err := os.WriteFile(cfgPath, []byte(yaml), 0o644); err != nil {
 		t.Fatalf("writing temp config: %v", err)
@@ -450,8 +450,8 @@ func TestPresetExpansion_BackendOverride(t *testing.T) {
 	}
 
 	for i, e := range cfg.Mounts.Entries {
-		if e.Backend != "nfs" {
-			t.Errorf("entries[%d].Backend = %q, want \"nfs\" (user override)", i, e.Backend)
+		if e.Backend != "rsync" {
+			t.Errorf("entries[%d].Backend = %q, want \"rsync\" (user override)", i, e.Backend)
 		}
 	}
 }

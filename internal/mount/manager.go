@@ -58,6 +58,23 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 
 		target := config.ExpandPath(entry.Target)
 
+		// Rsync backend handles files directly — no SSHFS staging needed.
+		if isFileMount(entry) && backendName == "rsync" {
+			ensureRemotePath(cfg.SSH, entry.Source, true, entry.File.DefaultContent)
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				fmt.Printf("[teeleport] mount: %s → %s ... failed creating parent dir: %v\n", entry.Name, entry.Target, err)
+				failures = append(failures, fmt.Sprintf("%s: %v", entry.Name, err))
+				continue
+			}
+			if err := backend.Mount(entry.Source, target); err != nil {
+				fmt.Printf("[teeleport] mount: %s → %s ... failed: %v\n", entry.Name, entry.Target, err)
+				failures = append(failures, fmt.Sprintf("%s: %v", entry.Name, err))
+				continue
+			}
+			fmt.Printf("[teeleport] mount: %s → %s ... ok (rsync)\n", entry.Name, entry.Target)
+			continue
+		}
+
 		if isFileMount(entry) {
 			// Check if symlink already exists and backing mount is active
 			if linkDest, err := os.Readlink(target); err == nil {
@@ -185,7 +202,11 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 			continue
 		}
 
-		fmt.Printf("[teeleport] mount: %s → %s ... ok\n", entry.Name, entry.Target)
+		suffix := ""
+		if backendName == "rsync" {
+			suffix = " (rsync)"
+		}
+		fmt.Printf("[teeleport] mount: %s → %s ... ok%s\n", entry.Name, entry.Target, suffix)
 	}
 
 	if len(failures) > 0 {

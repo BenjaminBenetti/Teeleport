@@ -78,6 +78,9 @@ func (c *Config) applyDefaults() {
 		defaultGID := 1000
 		c.Mounts.Permissions.GID = &defaultGID
 	}
+	if c.Mounts.Rsync.Interval == 0 {
+		c.Mounts.Rsync.Interval = 30
+	}
 }
 
 // expandPresets replaces mount entries that reference a preset with the
@@ -141,6 +144,9 @@ func (c *Config) Validate() error {
 		}
 		if e.Type != "" && e.Type != "directory" && e.Type != "file" {
 			return fmt.Errorf("mounts.entries[%d].type must be \"directory\" or \"file\", got %q", i, e.Type)
+		}
+		if e.Backend != "" && e.Backend != "sshfs" && e.Backend != "rsync" {
+			return fmt.Errorf("mounts.entries[%d].backend must be \"sshfs\" or \"rsync\", got %q", i, e.Backend)
 		}
 	}
 

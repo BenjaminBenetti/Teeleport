@@ -26,11 +26,24 @@ func RunChecks(cfg *config.Config) error {
 		return nil
 	}
 
-	// Check 1: FUSE device
-	if _, err := os.Stat("/dev/fuse"); err != nil {
-		return fmt.Errorf("FUSE not available. Add \"privileged\": true or \"runArgs\": [\"--device=/dev/fuse\"] to your devcontainer.json")
+	// Check 1: FUSE device — only required when non-rsync backends are used
+	needsFUSE := false
+	for _, e := range cfg.Mounts.Entries {
+		backend := e.Backend
+		if backend == "" {
+			backend = "sshfs"
+		}
+		if backend != "rsync" {
+			needsFUSE = true
+			break
+		}
 	}
-	fmt.Println("[teeleport] preflight: FUSE ✓")
+	if needsFUSE {
+		if _, err := os.Stat("/dev/fuse"); err != nil {
+			return fmt.Errorf("FUSE not available. Add \"privileged\": true or \"runArgs\": [\"--device=/dev/fuse\"] to your devcontainer.json")
+		}
+		fmt.Println("[teeleport] preflight: FUSE ✓")
+	}
 
 	// Check 2: SSH connectivity
 	sshCfg := cfg.Mounts.SSH
