@@ -268,11 +268,11 @@ func run() int {
 func main() {
 	// Check for subcommands before flag.Parse() since the standard flag
 	// package stops at the first non-flag argument.
+	// The rsync daemon skips setupLogFile() — its stdout/stderr are already
+	// redirected to ~/.teeleport/rsync.log by the parent process. Calling
+	// setupLogFile() here would truncate the main run.log.
 	if len(os.Args) > 1 && os.Args[1] == "rsync" {
-		cleanup := setupLogFile()
-		exitCode := runRsyncDaemon()
-		cleanup()
-		os.Exit(exitCode)
+		os.Exit(runRsyncDaemon())
 	}
 
 	cleanup := setupLogFile()

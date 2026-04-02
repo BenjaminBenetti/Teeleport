@@ -73,10 +73,17 @@ func RunDaemon(cfg DaemonConfig) error {
 // syncAll performs a single bidirectional sync cycle across all entries.
 // Errors are logged and swallowed so the daemon continues running.
 func syncAll(cfg DaemonConfig) {
+	var errCount int
 	for _, entry := range cfg.Entries {
 		if err := SyncEntry(cfg.SSH, entry); err != nil {
 			fmt.Printf("[teeleport] rsync daemon: sync error for %s: %v\n", entry.Name, err)
+			errCount++
 		}
+	}
+	if errCount == 0 {
+		fmt.Printf("[teeleport] rsync daemon: sync cycle complete (%d entries)\n", len(cfg.Entries))
+	} else {
+		fmt.Printf("[teeleport] rsync daemon: sync cycle complete (%d entries, %d errors)\n", len(cfg.Entries), errCount)
 	}
 }
 
