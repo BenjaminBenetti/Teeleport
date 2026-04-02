@@ -77,7 +77,8 @@ log "Added ${INSTALL_DIR} to PATH"
 
 # --- Run teeleport ---
 log "Starting teeleport..."
-teeleport
+mkdir -p "${HOME}/.teeleport"
+teeleport 2>&1 | tee "${HOME}/.teeleport/run.log"
 
 # Write the remount stamp so the shell hook knows this boot is already handled.
 mkdir -p "${HOME}/.teeleport"
