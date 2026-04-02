@@ -180,11 +180,6 @@ func run() int {
 		totalErrors++
 	}
 
-	// --- Rsync daemon ---
-	if rsyncpkg.HasRsyncEntries(cfg.Mounts.Entries) {
-		startRsyncDaemonIfNeeded(cfgPath)
-	}
-
 	// --- Copies ---
 	copyCount := len(cfg.Copies)
 	if err := filecopy.ProcessCopies(config.ExpandPath(cfg.DotfileRepo), cfg.Copies); err != nil {
@@ -201,6 +196,11 @@ func run() int {
 	// --- Summary ---
 	fmt.Printf("[teeleport] done: %d packages, %d mounts, %d copies (%d errors, %d warnings)\n",
 		pkgCount, mountCount, copyCount, totalErrors, warnings)
+
+	// --- Rsync daemon (started last, after all setup is complete) ---
+	if rsyncpkg.HasRsyncEntries(cfg.Mounts.Entries) {
+		startRsyncDaemonIfNeeded(cfgPath)
+	}
 
 	if totalErrors > 0 {
 		return 1
