@@ -27,12 +27,12 @@ func SyncEntry(ssh domainmodel.SSHConfig, entry domainmodel.MountEntry) error {
 	}
 
 	// Step 1: Push local → remote (only overwrite if local is newer)
-	if err := runRsync(ssh, target, entry.Source, isDir, "push"); err != nil {
+	if err := runRsync(ssh, target, entry.Source, isDir, "push", true); err != nil {
 		return fmt.Errorf("push %s: %w", entry.Name, err)
 	}
 
 	// Step 2: Pull remote → local (only overwrite if remote is newer)
-	if err := runRsync(ssh, entry.Source, target, isDir, "pull"); err != nil {
+	if err := runRsync(ssh, entry.Source, target, isDir, "pull", true); err != nil {
 		return fmt.Errorf("pull %s: %w", entry.Name, err)
 	}
 
@@ -40,23 +40,29 @@ func SyncEntry(ssh domainmodel.SSHConfig, entry domainmodel.MountEntry) error {
 }
 
 // PullEntry performs a one-way pull from remote to local for initial sync.
+// It skips --update so the remote always overwrites local, regardless of
+// timestamps. This is correct for first-boot: the remote holds the
+// persisted state and freshly-created local files should not win.
 func PullEntry(ssh domainmodel.SSHConfig, source, target string, isDir bool) error {
-	return runRsync(ssh, source, target, isDir, "pull")
+	return runRsync(ssh, source, target, isDir, "pull", false)
 }
 
 // runRsync executes a single rsync transfer in the specified direction.
 // For "push", localPath is the source and remotePath is the destination.
 // For "pull", remotePath is the source and localPath is the destination.
-// The --update flag ensures that files newer on the destination are never
-// overwritten (last-write-wins).
-func runRsync(ssh domainmodel.SSHConfig, fromPath, toPath string, isDir bool, direction string) error {
+// When useUpdate is true, --update is included so files newer on the
+// destination are never overwritten (last-write-wins). When false, the
+// source always overwrites the destination (used for initial first-boot sync).
+func runRsync(ssh domainmodel.SSHConfig, fromPath, toPath string, isDir bool, direction string, useUpdate bool) error {
 	sshCmd := buildSSHCommand(ssh)
 
 	args := []string{
 		"-az",       // archive mode + compression
-		"--update",  // skip files newer on the receiver (last-write-wins)
 		"--delete",  // remove files on destination that no longer exist on source
 		"-e", sshCmd,
+	}
+	if useUpdate {
+		args = append(args, "--update") // skip files newer on the receiver
 	}
 
 	var src, dst string
