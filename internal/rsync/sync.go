@@ -50,6 +50,9 @@ func PullEntry(ssh domainmodel.SSHConfig, source, target string, isDir bool) err
 // runRsync executes a single rsync transfer in the specified direction.
 // For "push", localPath is the source and remotePath is the destination.
 // For "pull", remotePath is the source and localPath is the destination.
+// The --delete flag is only applied to pull operations so that the local side
+// mirrors the server, which accumulates files from all clients. Push never
+// deletes from the server, preventing multi-client sync fighting.
 // When useUpdate is true, --update is included so files newer on the
 // destination are never overwritten (last-write-wins). When false, the
 // source always overwrites the destination (used for initial first-boot sync).
@@ -57,9 +60,11 @@ func runRsync(ssh domainmodel.SSHConfig, fromPath, toPath string, isDir bool, di
 	sshCmd := buildSSHCommand(ssh)
 
 	args := []string{
-		"-az",       // archive mode + compression
-		"--delete",  // remove files on destination that no longer exist on source
+		"-az", // archive mode + compression
 		"-e", sshCmd,
+	}
+	if direction == "pull" {
+		args = append(args, "--delete") // only pull mirrors server state; push never deletes from server
 	}
 	if useUpdate {
 		args = append(args, "--update") // skip files newer on the receiver
