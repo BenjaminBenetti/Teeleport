@@ -115,6 +115,27 @@ func TestScanLocalFiles_SingleFile(t *testing.T) {
 	}
 }
 
+func TestScanLocalFiles_ExcludesDeleteLogs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create normal files and a delete log file
+	for _, name := range []string{"a.txt", ".delete-log.myhost.manifest"} {
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := ScanLocalFiles(tmpDir, true)
+	if err != nil {
+		t.Fatalf("ScanLocalFiles() error: %v", err)
+	}
+
+	want := []string{"a.txt"}
+	if !slicesEqual(got, want) {
+		t.Errorf("ScanLocalFiles() = %v, want %v (delete log should be excluded)", got, want)
+	}
+}
+
 func TestScanLocalFiles_MissingFile(t *testing.T) {
 	got, err := ScanLocalFiles("/tmp/nonexistent-file-12345", false)
 	if err != nil {

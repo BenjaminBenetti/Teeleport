@@ -57,12 +57,18 @@ func RunDaemon(cfg DaemonConfig) error {
 	defer ticker.Stop()
 
 	// Run initial sync immediately
+	var cycleCount int
 	syncAll(cfg)
+	cycleCount++
 
 	for {
 		select {
 		case <-ticker.C:
 			syncAll(cfg)
+			cycleCount++
+			if cycleCount%cleanupCycleInterval == 0 {
+				cleanupAllStaleLogs(cfg)
+			}
 		case sig := <-sigCh:
 			fmt.Printf("[teeleport] rsync daemon: received %s, shutting down\n", sig)
 			return nil

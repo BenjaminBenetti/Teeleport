@@ -16,9 +16,10 @@ import (
 )
 
 // SyncEntry performs a single bidirectional sync cycle for one mount entry.
-// It detects intentional local deletions via a manifest, propagates them to
-// the remote, then pushes local changes and pulls remote changes. This
-// achieves last-write-wins semantics with deletion support.
+// Directory entries use a 9-step flow that detects local deletions via a
+// manifest, propagates them through per-client delete logs, then pushes and
+// pulls files. Single-file entries use a simpler push/pull without deletion
+// tracking (config files are never considered deleted).
 func SyncEntry(ssh domainmodel.SSHConfig, entry domainmodel.MountEntry) error {
 	target := config.ExpandPath(entry.Target)
 
@@ -27,59 +28,95 @@ func SyncEntry(ssh domainmodel.SSHConfig, entry domainmodel.MountEntry) error {
 		isDir = true
 	}
 
-	// Step 1: Detect and propagate intentional deletions
-	if err := propagateDeletions(ssh, entry, target, isDir); err != nil {
-		fmt.Printf("[teeleport] rsync: deletion propagation warning for %s: %v\n", entry.Name, err)
-		// Non-fatal: continue with push/pull even if deletion propagation fails
+	if isDir {
+		return syncDirectoryEntry(ssh, entry, target)
+	}
+	return syncFileEntry(ssh, entry, target)
+}
+
+// syncFileEntry handles single-file mount entries with a simple push/pull.
+// Delete-log tracking is not applicable to file mounts.
+func syncFileEntry(ssh domainmodel.SSHConfig, entry domainmodel.MountEntry, target string) error {
+	if err := runRsync(ssh, target, entry.Source, false, "push", true); err != nil {
+		return fmt.Errorf("push %s: %w", entry.Name, err)
+	}
+	if err := runRsync(ssh, entry.Source, target, false, "pull", true); err != nil {
+		return fmt.Errorf("pull %s: %w", entry.Name, err)
+	}
+	return nil
+}
+
+// syncDirectoryEntry implements the full 9-step sync cycle for directory
+// mount entries, including manifest-based deletion detection, per-client
+// delete-log coordination, and bidirectional file synchronisation.
+func syncDirectoryEntry(ssh domainmodel.SSHConfig, entry domainmodel.MountEntry, target string) error {
+	// Step 1: Detect local deletions via manifest diff
+	previous, _ := LoadManifest(entry.Name)
+	current, _ := ScanLocalFiles(target, true)
+
+	var newDeletions []string
+	if len(previous) > 0 {
+		newDeletions = DetectDeletions(previous, current)
 	}
 
-	// Step 2: Push local → remote (only overwrite if local is newer)
-	if err := runRsync(ssh, target, entry.Source, isDir, "push", true); err != nil {
+	// Step 2: Record new deletions in our per-client delete log
+	if len(newDeletions) > 0 {
+		if err := AppendDeletions(target, newDeletions); err != nil {
+			fmt.Printf("[teeleport] rsync: append deletions warning for %s: %v\n", entry.Name, err)
+		}
+		fmt.Printf("[teeleport] rsync: detected %d new deletion(s) for %s\n", len(newDeletions), entry.Name)
+	}
+
+	// Step 3: SSH rm newly detected deletions from server (immediate cleanup)
+	if len(newDeletions) > 0 {
+		if err := deleteRemoteFiles(ssh, entry.Source, newDeletions, true); err != nil {
+			fmt.Printf("[teeleport] rsync: SSH rm warning for %s: %v\n", entry.Name, err)
+		}
+	}
+
+	// Step 4: Push our delete log to server
+	if err := pushOurDeleteLog(ssh, target, entry.Source); err != nil {
+		fmt.Printf("[teeleport] rsync: push delete log warning for %s: %v\n", entry.Name, err)
+	}
+
+	// Step 5: Pull all per-client delete logs from server
+	if err := pullAllDeleteLogs(ssh, target, entry.Source); err != nil {
+		fmt.Printf("[teeleport] rsync: pull delete logs warning for %s: %v\n", entry.Name, err)
+	}
+
+	// Step 6: Process all delete logs — delete local files + SSH rm from server
+	logDeleted, err := processDeleteLogEntries(target)
+	if err != nil {
+		fmt.Printf("[teeleport] rsync: process delete logs warning for %s: %v\n", entry.Name, err)
+	}
+	if len(logDeleted) > 0 {
+		fmt.Printf("[teeleport] rsync: delete log removed %d file(s) for %s\n", len(logDeleted), entry.Name)
+		if err := deleteRemoteFiles(ssh, entry.Source, logDeleted, true); err != nil {
+			fmt.Printf("[teeleport] rsync: SSH rm (log) warning for %s: %v\n", entry.Name, err)
+		}
+	}
+
+	// Step 7: Push all files (no --delete, --update)
+	if err := runRsync(ssh, target, entry.Source, true, "push", true); err != nil {
 		return fmt.Errorf("push %s: %w", entry.Name, err)
 	}
 
-	// Step 3: Pull remote → local (only overwrite if remote is newer)
-	if err := runRsync(ssh, entry.Source, target, isDir, "pull", true); err != nil {
+	// Step 8: Pull all files (--delete, --update)
+	if err := runRsync(ssh, entry.Source, target, true, "pull", true); err != nil {
 		return fmt.Errorf("pull %s: %w", entry.Name, err)
 	}
 
-	// Step 4: Save manifest reflecting post-sync state
-	currentFiles, err := ScanLocalFiles(target, isDir)
+	// Step 9: Save manifest reflecting post-sync state
+	postSyncFiles, err := ScanLocalFiles(target, true)
 	if err != nil {
 		fmt.Printf("[teeleport] rsync: manifest scan warning for %s: %v\n", entry.Name, err)
 	} else {
-		if err := SaveManifest(entry.Name, currentFiles); err != nil {
+		if err := SaveManifest(entry.Name, postSyncFiles); err != nil {
 			fmt.Printf("[teeleport] rsync: manifest save warning for %s: %v\n", entry.Name, err)
 		}
 	}
 
 	return nil
-}
-
-// propagateDeletions compares the current local file list against the stored
-// manifest to detect files that were intentionally deleted locally, then
-// removes those files from the remote via SSH.
-func propagateDeletions(ssh domainmodel.SSHConfig, entry domainmodel.MountEntry, localPath string, isDir bool) error {
-	previous, err := LoadManifest(entry.Name)
-	if err != nil {
-		return fmt.Errorf("loading manifest: %w", err)
-	}
-	if len(previous) == 0 {
-		return nil // first sync — no manifest yet, skip deletion detection
-	}
-
-	current, err := ScanLocalFiles(localPath, isDir)
-	if err != nil {
-		return fmt.Errorf("scanning local files: %w", err)
-	}
-
-	deleted := DetectDeletions(previous, current)
-	if len(deleted) == 0 {
-		return nil
-	}
-
-	fmt.Printf("[teeleport] rsync: detected %d deletion(s) for %s\n", len(deleted), entry.Name)
-	return deleteRemoteFiles(ssh, entry.Source, deleted, isDir)
 }
 
 // deleteRemoteFiles removes the listed relative paths from the remote host

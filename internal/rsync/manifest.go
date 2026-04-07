@@ -73,6 +73,9 @@ func ScanLocalFiles(localPath string, isDir bool) ([]string, error) {
 		if info.IsDir() {
 			return nil
 		}
+		if IsDeleteLog(info.Name()) {
+			return nil
+		}
 		rel, err := filepath.Rel(localPath, path)
 		if err != nil {
 			return err
