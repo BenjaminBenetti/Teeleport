@@ -197,8 +197,12 @@ func run() int {
 	fmt.Printf("[teeleport] done: %d packages, %d mounts, %d copies (%d errors, %d warnings)\n",
 		pkgCount, mountCount, copyCount, totalErrors, warnings)
 
-	// --- Rsync daemon (started last, after all setup is complete) ---
+	// --- SSH multiplexing + Rsync daemon ---
 	if rsyncpkg.HasRsyncEntries(cfg.Mounts.Entries) {
+		if err := rsyncpkg.EnsureSSHMultiplexing(cfg.Mounts.SSH); err != nil {
+			fmt.Fprintf(os.Stderr, "[teeleport] warning: ssh multiplexing: %v\n", err)
+			warnings++
+		}
 		startRsyncDaemonIfNeeded(cfgPath)
 	}
 
