@@ -119,9 +119,14 @@ func syncDirectoryEntry(ssh domainmodel.SSHConfig, entry domainmodel.MountEntry,
 	return nil
 }
 
+// maxRmBatchSize is the maximum number of file paths to include in a single
+// SSH rm command, to avoid "argument list too long" errors from the OS.
+const maxRmBatchSize = 200
+
 // deleteRemoteFiles removes the listed relative paths from the remote host
-// via a single SSH session. For directory entries, paths are relative to
-// remotePath. For file entries, remotePath itself is removed.
+// via SSH. For directory entries, paths are relative to remotePath. For file
+// entries, remotePath itself is removed. Large lists are split into batches
+// to prevent argument list overflow.
 func deleteRemoteFiles(ssh domainmodel.SSHConfig, remotePath string, files []string, isDir bool) error {
 	var rmArgs []string
 	for _, f := range files {
@@ -142,29 +147,37 @@ func deleteRemoteFiles(ssh domainmodel.SSHConfig, remotePath string, files []str
 		}
 	}
 
-	sshArgs := []string{
+	baseSshArgs := []string{
 		"-p", fmt.Sprintf("%d", ssh.Port),
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "ConnectTimeout=10",
 		"-o", "BatchMode=yes",
 	}
 	if ssh.IdentityFile != "" {
-		sshArgs = append(sshArgs, "-i", config.ExpandPath(ssh.IdentityFile))
+		baseSshArgs = append(baseSshArgs, "-i", config.ExpandPath(ssh.IdentityFile))
 	}
-	sshArgs = append(sshArgs, fmt.Sprintf("%s@%s", sshUser, ssh.Host))
+	baseSshArgs = append(baseSshArgs, fmt.Sprintf("%s@%s", sshUser, ssh.Host))
 
-	// Build a single rm -f command for all files
-	var rmCmd strings.Builder
-	rmCmd.WriteString("rm -f")
-	for _, p := range rmArgs {
-		fmt.Fprintf(&rmCmd, " %q", p)
-	}
-	sshArgs = append(sshArgs, rmCmd.String())
+	// Process in batches to avoid argument list overflow.
+	for i := 0; i < len(rmArgs); i += maxRmBatchSize {
+		end := min(i+maxRmBatchSize, len(rmArgs))
+		batch := rmArgs[i:end]
 
-	cmd := exec.Command("ssh", sshArgs...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ssh rm failed: %w\noutput: %s", err, strings.TrimSpace(string(output)))
+		var rmCmd strings.Builder
+		rmCmd.WriteString("rm -f")
+		for _, p := range batch {
+			fmt.Fprintf(&rmCmd, " %q", p)
+		}
+
+		sshArgs := make([]string, len(baseSshArgs)+1)
+		copy(sshArgs, baseSshArgs)
+		sshArgs[len(baseSshArgs)] = rmCmd.String()
+
+		cmd := exec.Command("ssh", sshArgs...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("ssh rm failed: %w\noutput: %s", err, strings.TrimSpace(string(output)))
+		}
 	}
 	return nil
 }

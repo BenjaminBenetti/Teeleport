@@ -28,6 +28,11 @@ const (
 	// staleLogMaxAge is how long a per-client delete log may go unwritten
 	// before it is considered stale and eligible for removal.
 	staleLogMaxAge = 24 * time.Hour
+
+	// deleteLogMaxAge is the maximum age of a delete log entry to be
+	// processed. Entries older than this are ignored to prevent unbounded
+	// accumulation of delete operations across sync cycles.
+	deleteLogMaxAge = 30 * time.Minute
 )
 
 // ===========================================
@@ -144,10 +149,20 @@ func AppendDeletions(targetDir string, deletedPaths []string) error {
 	}
 
 	now := time.Now().UTC()
-	for _, p := range deletedPaths {
-		existing = append(existing, DeleteLogEntry{Path: p, DeletedAt: now})
+	cutoff := now.Add(-deleteLogMaxAge)
+
+	// Prune entries older than deleteLogMaxAge to prevent unbounded growth.
+	var pruned []DeleteLogEntry
+	for _, e := range existing {
+		if !e.DeletedAt.Before(cutoff) {
+			pruned = append(pruned, e)
+		}
 	}
-	return WriteDeleteLog(logPath, existing)
+
+	for _, p := range deletedPaths {
+		pruned = append(pruned, DeleteLogEntry{Path: p, DeletedAt: now})
+	}
+	return WriteDeleteLog(logPath, pruned)
 }
 
 // ===========================================
@@ -177,10 +192,15 @@ func processDeleteLogEntries(targetDir string) ([]string, error) {
 		return nil, err
 	}
 
-	// Build a map of path -> latest deletion timestamp.
+	// Build a map of path -> latest deletion timestamp, ignoring entries
+	// older than deleteLogMaxAge to prevent unbounded accumulation.
+	cutoff := time.Now().UTC().Add(-deleteLogMaxAge)
 	latest := make(map[string]time.Time)
 	for _, e := range entries {
 		if IsDeleteLog(e.Path) {
+			continue
+		}
+		if e.DeletedAt.Before(cutoff) {
 			continue
 		}
 		if t, ok := latest[e.Path]; !ok || e.DeletedAt.After(t) {

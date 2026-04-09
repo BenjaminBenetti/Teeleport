@@ -225,8 +225,8 @@ func TestProcessDeleteLogEntries(t *testing.T) {
 	newFile := filepath.Join(tmpDir, "new.txt")
 	os.WriteFile(newFile, []byte("x"), 0o644)
 
-	// Write a delete log with entries for both files
-	deletionTime := time.Now().Add(-30 * time.Minute) // between old mtime and new mtime
+	// Write a delete log with entries for both files (within 30 min window)
+	deletionTime := time.Now().Add(-10 * time.Minute)
 	WriteDeleteLog(filepath.Join(tmpDir, ".delete-log.test.manifest"), []DeleteLogEntry{
 		{Path: "old.txt", DeletedAt: deletionTime},
 		{Path: "new.txt", DeletedAt: deletionTime},
@@ -257,14 +257,14 @@ func TestProcessDeleteLogEntries(t *testing.T) {
 func TestProcessDeleteLogEntries_LatestTimestampWins(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create a file with mtime between T1 and T2
+	// Create a file with mtime in the past
 	filePath := filepath.Join(tmpDir, "target.txt")
 	os.WriteFile(filePath, []byte("x"), 0o644)
-	fileMtime := time.Now().Add(-30 * time.Minute)
+	fileMtime := time.Now().Add(-25 * time.Minute)
 	os.Chtimes(filePath, fileMtime, fileMtime)
 
-	T1 := time.Now().Add(-1 * time.Hour)  // older than file — would NOT delete
-	T2 := time.Now().Add(-10 * time.Minute) // newer than file — WOULD delete
+	T1 := time.Now().Add(-20 * time.Minute) // older than file — would NOT delete (but within 30m window)
+	T2 := time.Now().Add(-10 * time.Minute)  // newer than file — WOULD delete
 
 	// Client A logged deletion at T1, Client B at T2
 	WriteDeleteLog(filepath.Join(tmpDir, ".delete-log.client-a.manifest"), []DeleteLogEntry{
@@ -285,6 +285,66 @@ func TestProcessDeleteLogEntries_LatestTimestampWins(t *testing.T) {
 	}
 	if len(deleted) != 1 || deleted[0] != "target.txt" {
 		t.Errorf("returned %v, want [target.txt]", deleted)
+	}
+}
+
+func TestProcessDeleteLogEntries_IgnoresOldEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a file with old mtime
+	oldFile := filepath.Join(tmpDir, "stale.txt")
+	os.WriteFile(oldFile, []byte("x"), 0o644)
+	past := time.Now().Add(-2 * time.Hour)
+	os.Chtimes(oldFile, past, past)
+
+	// Write a delete log with an entry older than 30 minutes
+	staleTime := time.Now().Add(-1 * time.Hour)
+	WriteDeleteLog(filepath.Join(tmpDir, ".delete-log.test.manifest"), []DeleteLogEntry{
+		{Path: "stale.txt", DeletedAt: staleTime},
+	})
+
+	deleted, err := processDeleteLogEntries(tmpDir)
+	if err != nil {
+		t.Fatalf("processDeleteLogEntries() error: %v", err)
+	}
+
+	// stale.txt should NOT be deleted because the entry is too old
+	if _, err := os.Stat(oldFile); err != nil {
+		t.Error("stale.txt should NOT have been deleted (entry older than 30 min)")
+	}
+	if len(deleted) != 0 {
+		t.Errorf("expected no deletions, got %v", deleted)
+	}
+}
+
+func TestAppendDeletions_PrunesOldEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	logName, _ := deleteLogFilename()
+	logPath := filepath.Join(tmpDir, logName)
+
+	// Seed with an old entry (older than 30 min)
+	oldTime := time.Now().UTC().Add(-1 * time.Hour)
+	WriteDeleteLog(logPath, []DeleteLogEntry{
+		{Path: "ancient.txt", DeletedAt: oldTime},
+	})
+
+	// Append a new deletion
+	if err := AppendDeletions(tmpDir, []string{"fresh.txt"}); err != nil {
+		t.Fatalf("AppendDeletions() error: %v", err)
+	}
+
+	entries, err := ReadDeleteLog(logPath)
+	if err != nil {
+		t.Fatalf("ReadDeleteLog() error: %v", err)
+	}
+
+	// Only the fresh entry should remain; the ancient one should be pruned
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1 (old entry should be pruned)", len(entries))
+	}
+	if entries[0].Path != "fresh.txt" {
+		t.Errorf("entry.Path = %q, want fresh.txt", entries[0].Path)
 	}
 }
 
