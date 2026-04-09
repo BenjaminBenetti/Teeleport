@@ -60,6 +60,12 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 
 		// Rsync backend handles files directly — no SSHFS staging needed.
 		if isFileMount(entry) && backendName == "rsync" {
+			if entry.ForceMount {
+				if actualType := mountedFsType(filepath.Dir(target)); actualType != "" {
+					fmt.Printf("[teeleport] mount: %s → %s ... conflicting mount (%s) on parent dir, unmounting\n", entry.Name, entry.Target, actualType)
+					lazyUnmount(filepath.Dir(target))
+				}
+			}
 			ensureRemotePath(cfg.SSH, entry.Source, true, entry.File.DefaultContent)
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				fmt.Printf("[teeleport] mount: %s → %s ... failed creating parent dir: %v\n", entry.Name, entry.Target, err)
@@ -184,6 +190,15 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 			} else {
 				fmt.Printf("[teeleport] mount: %s → %s ... already mounted, skipping\n", entry.Name, entry.Target)
 				continue
+			}
+		}
+
+		// For rsync, IsMounted always returns false — check for conflicting
+		// mounts separately so the force_mount flag is respected.
+		if entry.ForceMount && backendName == "rsync" {
+			if actualType := mountedFsType(target); actualType != "" {
+				fmt.Printf("[teeleport] mount: %s → %s ... conflicting mount (%s), unmounting\n", entry.Name, entry.Target, actualType)
+				lazyUnmount(target)
 			}
 		}
 
