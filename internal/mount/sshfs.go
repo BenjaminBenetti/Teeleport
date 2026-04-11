@@ -196,12 +196,15 @@ func isResponsive(target string) bool {
 }
 
 // lazyUnmount detaches a mount point without waiting for busy file handles to
-// close. It tries fusermount -uz first (FUSE-aware), falling back to
-// umount -l (kernel-level lazy unmount).
+// close. It tries fusermount -uz first (FUSE-aware), then umount -l, and
+// finally sudo umount -l for environments where the user lacks privileges
+// (e.g. devcontainers with passwordless sudo).
 func lazyUnmount(target string) error {
 	if err := exec.Command("fusermount", "-uz", target).Run(); err != nil {
 		if err2 := exec.Command("umount", "-l", target).Run(); err2 != nil {
-			return fmt.Errorf("unmount %s failed: fusermount: %v, umount: %v", target, err, err2)
+			if err3 := exec.Command("sudo", "umount", "-l", target).Run(); err3 != nil {
+				return fmt.Errorf("unmount %s failed: fusermount: %v, umount: %v, sudo umount: %v", target, err, err2, err3)
+			}
 		}
 	}
 	return nil
