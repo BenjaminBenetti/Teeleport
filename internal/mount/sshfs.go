@@ -167,7 +167,9 @@ func (b *SSHFSBackend) IsMounted(target string) (bool, error) {
 	// The mount is listed — verify it is actually responsive.
 	if !isResponsive(target) {
 		fmt.Printf("[teeleport] mount: stale mount detected at %s, cleaning up\n", target)
-		lazyUnmount(target)
+		if err := lazyUnmount(target); err != nil {
+			return false, fmt.Errorf("stale mount cleanup: %w", err)
+		}
 		return false, nil
 	}
 
@@ -196,8 +198,11 @@ func isResponsive(target string) bool {
 // lazyUnmount detaches a mount point without waiting for busy file handles to
 // close. It tries fusermount -uz first (FUSE-aware), falling back to
 // umount -l (kernel-level lazy unmount).
-func lazyUnmount(target string) {
+func lazyUnmount(target string) error {
 	if err := exec.Command("fusermount", "-uz", target).Run(); err != nil {
-		exec.Command("umount", "-l", target).Run()
+		if err2 := exec.Command("umount", "-l", target).Run(); err2 != nil {
+			return fmt.Errorf("unmount %s failed: fusermount: %v, umount: %v", target, err, err2)
+		}
 	}
+	return nil
 }

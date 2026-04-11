@@ -63,7 +63,11 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 			if entry.ForceMount {
 				if actualType := mountedFsType(filepath.Dir(target)); actualType != "" {
 					fmt.Printf("[teeleport] mount: %s → %s ... conflicting mount (%s) on parent dir, unmounting\n", entry.Name, entry.Target, actualType)
-					lazyUnmount(filepath.Dir(target))
+					if err := lazyUnmount(filepath.Dir(target)); err != nil {
+						fmt.Printf("[teeleport] mount: %s → %s ... %v\n", entry.Name, entry.Target, err)
+						failures = append(failures, fmt.Sprintf("%s: %v", entry.Name, err))
+						continue
+					}
 				}
 			}
 			ensureRemotePath(cfg.SSH, entry.Source, true, entry.File.DefaultContent)
@@ -198,7 +202,11 @@ func ProcessMounts(cfg domainmodel.MountConfig) error {
 		if entry.ForceMount && backendName == "rsync" {
 			if actualType := mountedFsType(target); actualType != "" {
 				fmt.Printf("[teeleport] mount: %s → %s ... conflicting mount (%s), unmounting\n", entry.Name, entry.Target, actualType)
-				lazyUnmount(target)
+				if err := lazyUnmount(target); err != nil {
+					fmt.Printf("[teeleport] mount: %s → %s ... %v\n", entry.Name, entry.Target, err)
+					failures = append(failures, fmt.Sprintf("%s: %v", entry.Name, err))
+					continue
+				}
 			}
 		}
 
