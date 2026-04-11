@@ -198,7 +198,9 @@ func isResponsive(target string) bool {
 // lazyUnmount detaches a mount point without waiting for busy file handles to
 // close. It tries fusermount -uz first (FUSE-aware), then umount -l, and
 // finally sudo umount -l for environments where the user lacks privileges
-// (e.g. devcontainers with passwordless sudo).
+// (e.g. devcontainers with passwordless sudo). After a successful unmount the
+// target is chowned to the current user so subsequent writes work without
+// privilege issues.
 func lazyUnmount(target string) error {
 	if err := exec.Command("fusermount", "-uz", target).Run(); err != nil {
 		if err2 := exec.Command("umount", "-l", target).Run(); err2 != nil {
@@ -207,5 +209,14 @@ func lazyUnmount(target string) error {
 			}
 		}
 	}
+
+	u, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("unmount %s succeeded but could not determine current user: %w", target, err)
+	}
+	if err := exec.Command("sudo", "chown", "-R", u.Uid+":"+u.Gid, target).Run(); err != nil {
+		return fmt.Errorf("unmount %s succeeded but chown to %s:%s failed: %w", target, u.Uid, u.Gid, err)
+	}
+
 	return nil
 }
