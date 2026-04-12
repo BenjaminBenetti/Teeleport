@@ -43,20 +43,16 @@ func NewAICli(tool string) (AICli, error) {
 	}
 }
 
-// RunAICli is the top-level entry point for the ai-cli subsystem, typically
-// called from main.go. It resolves the configured backend, installs it if
-// necessary, builds the startup prompt, and runs the tool.
+// InstallAICli installs the AI CLI tool specified in cfg. It resolves the
+// backend and calls Install on it. This is intended to run early in the
+// startup sequence (right after package installation) so that the tool is
+// available before mounts alter state files.
 //
-// The cfg parameter supplies the AI CLI configuration (tool name, prompt, and
-// prompt file path). The dotfileRepo parameter is the base path used to resolve
-// relative prompt file references via config.ResolvePath.
-//
-// RunAICli always returns nil. Any errors encountered during installation or
-// execution are logged as warnings to stdout rather than propagated, so the
-// caller never needs to treat them as fatal.
-func RunAICli(cfg domainmodel.AICLIConfig, dotfileRepo string) error {
+// InstallAICli always returns nil. Any errors encountered during installation
+// are logged as warnings to stdout rather than propagated, so the caller
+// never needs to treat them as fatal.
+func InstallAICli(cfg domainmodel.AICLIConfig) error {
 	if cfg.Tool == "" {
-		fmt.Println("[teeleport] ai-cli: no tool configured, skipping")
 		return nil
 	}
 
@@ -68,6 +64,32 @@ func RunAICli(cfg domainmodel.AICLIConfig, dotfileRepo string) error {
 
 	if err := backend.Install(); err != nil {
 		fmt.Printf("[teeleport] ai-cli: warning: install failed: %v\n", err)
+		return nil
+	}
+
+	return nil
+}
+
+// RunAICliPrompt resolves the startup prompt for the configured AI CLI tool
+// and runs it. This is intended to run later in the startup sequence, after
+// mounts have completed, since the prompt files may depend on auth info
+// supplied by mounts.
+//
+// The cfg parameter supplies the AI CLI configuration (tool name, prompt, and
+// prompt file path). The dotfileRepo parameter is the base path used to resolve
+// relative prompt file references via config.ResolvePath.
+//
+// RunAICliPrompt always returns nil. Any errors encountered during execution
+// are logged as warnings to stdout rather than propagated, so the caller
+// never needs to treat them as fatal.
+func RunAICliPrompt(cfg domainmodel.AICLIConfig, dotfileRepo string) error {
+	if cfg.Tool == "" {
+		return nil
+	}
+
+	backend, err := NewAICli(cfg.Tool)
+	if err != nil {
+		fmt.Printf("[teeleport] ai-cli: warning: %v\n", err)
 		return nil
 	}
 

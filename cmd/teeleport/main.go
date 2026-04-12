@@ -160,6 +160,15 @@ func run() int {
 		warnings++
 	}
 
+	// --- AI CLI install ---
+	// Install AI tools early (before mounts) so their installation does not
+	// overwrite state files that mounts will provide.
+	for _, cli := range cfg.AICli {
+		if cli.Tool != "" {
+			_ = aicli.InstallAICli(cli)
+		}
+	}
+
 	// --- Preflight checks ---
 	preflightOK := true
 	if err := preflight.RunChecks(cfg); err != nil {
@@ -186,10 +195,12 @@ func run() int {
 		totalErrors++
 	}
 
-	// --- AI CLI ---
+	// --- AI CLI startup prompts ---
+	// Run AI startup prompts after mounts, since prompts may depend on
+	// auth info supplied by mounted files.
 	for _, cli := range cfg.AICli {
 		if cli.Tool != "" {
-			_ = aicli.RunAICli(cli, config.ExpandPath(cfg.DotfileRepo))
+			_ = aicli.RunAICliPrompt(cli, config.ExpandPath(cfg.DotfileRepo))
 		}
 	}
 
