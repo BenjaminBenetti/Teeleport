@@ -208,12 +208,19 @@ func run() int {
 	fmt.Printf("[teeleport] done: %d packages, %d mounts, %d copies (%d errors, %d warnings)\n",
 		pkgCount, mountCount, copyCount, totalErrors, warnings)
 
-	// --- SSH multiplexing + Rsync daemon ---
-	if rsyncpkg.HasRsyncEntries(cfg.Mounts.Entries) {
+	// --- SSH multiplexing ---
+	// Enable multiplexing for any SSH-backed backend (sshfs or rsync) so that
+	// ensureRemotePath calls, multiple mounts, and rsync cycles all reuse a
+	// single master connection.
+	if cfg.Mounts.SSH.Host != "" {
 		if err := rsyncpkg.EnsureSSHMultiplexing(cfg.Mounts.SSH); err != nil {
 			fmt.Fprintf(os.Stderr, "[teeleport] warning: ssh multiplexing: %v\n", err)
 			warnings++
 		}
+	}
+
+	// --- Rsync daemon ---
+	if rsyncpkg.HasRsyncEntries(cfg.Mounts.Entries) {
 		startRsyncDaemonIfNeeded(cfgPath)
 	}
 
