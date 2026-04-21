@@ -220,8 +220,12 @@ func run() int {
 	}
 
 	// --- Rsync daemon ---
-	if rsyncpkg.HasRsyncEntries(cfg.Mounts.Entries) {
+	// Skip the daemon when preflight failed: launching it against a broken
+	// SSH connection can corrupt remote state if the failure is intermittent.
+	if preflightOK && rsyncpkg.HasRsyncEntries(cfg.Mounts.Entries) {
 		startRsyncDaemonIfNeeded(cfgPath)
+	} else if !preflightOK && rsyncpkg.HasRsyncEntries(cfg.Mounts.Entries) {
+		fmt.Println("[teeleport] skipping rsync daemon due to preflight failure")
 	}
 
 	if totalErrors > 0 {
